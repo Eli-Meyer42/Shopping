@@ -344,12 +344,6 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
 
   <div class="lab">Sync</div>
   <div class="syncrow"><span class="syncdot off" id="syncdot"></span><span id="syncword">Not connected</span></div>
-  <div class="stack">
-    <a class="btn linkbtn" id="fbconsole" target="_blank" rel="noopener"
-       href="https://console.firebase.google.com/project/shopping-eb9b3/settings/general/web:MzdlZTc3ODMtMDliOS00ODRmLTkxYmQtMDliMGVkZmE0MmU2">Open Firebase console</a>
-    <a class="btn linkbtn" target="_blank" rel="noopener"
-       href="https://console.firebase.google.com/project/shopping-eb9b3/database/shopping-eb9b3-default-rtdb/data">View the stored data</a>
-  </div>
 
   <div class="lab">Backup</div>
   <div class="stack">
@@ -366,17 +360,19 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
   <p style="margin-bottom:9px" id="hist-note"></p>
   <div class="stack"><button class="btn" id="reset-snap">Forget the note history</button></div>
 
-  <div class="lab">Code &amp; hosting</div>
+  <div class="lab">Links</div>
   <div class="stack">
+    <a class="btn linkbtn" target="_blank" rel="noopener"
+       href="https://console.firebase.google.com/project/shopping-eb9b3/database/shopping-eb9b3-default-rtdb/data">Stored data</a>
+    <a class="btn linkbtn" id="fbconsole" target="_blank" rel="noopener"
+       href="https://console.firebase.google.com/project/shopping-eb9b3/settings/general/web:MzdlZTc3ODMtMDliOS00ODRmLTkxYmQtMDliMGVkZmE0MmU2">Firebase console</a>
     <a class="btn linkbtn" target="_blank" rel="noopener"
        href="https://github.com/Eli-Meyer42/Shopping">GitHub repository</a>
     <a class="btn linkbtn" target="_blank" rel="noopener"
-       href="https://app.netlify.com/projects/my-shoppers/overview">Netlify site</a>
-    <a class="btn linkbtn" target="_blank" rel="noopener"
-       href="https://app.netlify.com/projects/my-shoppers/deploys">Deploy history</a>
+       href="https://app.netlify.com/projects/my-shoppers/deploys">Netlify deploys</a>
   </div>
 
-  <p class="buildstamp">Build 5 · 17 Nov 2026</p>
+  <p class="buildstamp">Build 6 · 18 Nov 2026</p>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/12.11.0/firebase-app-compat.js"></script>
