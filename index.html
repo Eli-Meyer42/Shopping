@@ -3,8 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#EEF1F5">
-<title>Shopping — Tiles</title>
+<meta name="theme-color" content="#EDEFEE">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>Shopping</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -205,6 +209,32 @@ h1,h2{font-family:'Outfit',sans-serif;font-weight:600;letter-spacing:-.02em;}
 .syncdot.error{background:var(--warn);}
 .linkbtn{display:block;text-align:center;text-decoration:none;color:var(--ink);}
 .buildstamp{text-align:center;font-size:12px;color:var(--faint);margin:22px 0 2px;}
+
+/* ---- voice ---- */
+.micbtn{flex:none;width:48px;padding:0;display:grid;place-items:center;color:var(--soft);}
+.micbtn svg{width:21px;height:21px;}
+.voice{position:fixed;inset:0;z-index:90;background:var(--bg);display:none;
+  flex-direction:column;padding:16px 16px calc(18px + env(safe-area-inset-bottom));}
+.voice.on{display:flex;}
+.vclose{align-self:flex-end;border:1px solid var(--line);background:var(--surface);color:var(--ink);
+  font:inherit;font-size:15px;font-weight:600;padding:10px 20px;border-radius:12px;cursor:pointer;}
+.vmid{flex:none;display:flex;flex-direction:column;align-items:center;gap:14px;padding:26px 0 10px;}
+.vpulse{width:96px;height:96px;border-radius:50%;background:var(--accent);color:#fff;
+  display:grid;place-items:center;box-shadow:0 0 0 0 rgba(79,112,136,.45);}
+.vpulse svg{width:40px;height:40px;}
+.vpulse.live{animation:vp 1.6s ease-out infinite;}
+@keyframes vp{0%{box-shadow:0 0 0 0 rgba(79,112,136,.40);}70%{box-shadow:0 0 0 26px rgba(79,112,136,0);}100%{box-shadow:0 0 0 0 rgba(79,112,136,0);}}
+.vpulse.idle{background:var(--faint);}
+.vhint{margin:0;font-size:17px;color:var(--soft);text-align:center;}
+.vheard{margin:0;font-size:21px;font-weight:600;text-align:center;min-height:28px;
+  color:var(--ink);line-height:1.25;}
+.vlog{flex:1;overflow-y:auto;margin-top:14px;display:flex;flex-direction:column;gap:7px;}
+.vitem{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);
+  border-radius:12px;padding:11px 13px;font-size:16px;animation:vin .18s ease-out;}
+@keyframes vin{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+.vitem .where{margin-left:auto;font-size:12.5px;color:var(--faint);text-align:right;}
+.vitem.gone{color:var(--faint);text-decoration:line-through;}
+.vtip{margin:10px 0 0;text-align:center;font-size:13px;color:var(--faint);}
 input,textarea,.btn{border-radius:14px;}
 .primary{background:var(--accent);border-color:var(--accent);}
 .opt{border-radius:14px;}
@@ -267,10 +297,26 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
     <div id="cart"></div>
   </section>
   <div class="add">
+    <button class="btn micbtn" id="mic" aria-label="Add by voice">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="7.4" y="2.2" width="5.2" height="9.2" rx="2.6"/><path d="M4.6 9.2a5.4 5.4 0 0 0 10.8 0M10 14.6v3.2"/></svg>
+    </button>
     <input id="new-name" placeholder="Add an item" autocomplete="off">
     <button class="btn primary" id="add-btn">Add</button>
   </div>
   <p class="foot" id="foot"></p>
+</div>
+
+<div class="voice" id="voice" role="dialog" aria-modal="true" aria-label="Add by voice">
+  <button class="vclose" id="v-close" aria-label="Close">Done</button>
+  <div class="vmid">
+    <div class="vpulse" id="v-pulse">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="7.4" y="2.2" width="5.2" height="9.2" rx="2.6"/><path d="M4.6 9.2a5.4 5.4 0 0 0 10.8 0M10 14.6v3.2"/></svg>
+    </div>
+    <p class="vhint" id="v-hint">Listening…</p>
+    <p class="vheard" id="v-heard"></p>
+  </div>
+  <div class="vlog" id="v-log"></div>
+  <p class="vtip">Say an item, then the next. “Remove milk” takes one off.</p>
 </div>
 
 <div class="scrim" id="scrim"></div>
@@ -372,7 +418,7 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
        href="https://app.netlify.com/projects/my-shoppers/deploys">Netlify deploys</a>
   </div>
 
-  <p class="buildstamp">Build 6 · 18 Nov 2026</p>
+  <p class="buildstamp">Build 7 · 19 Nov 2026</p>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/12.11.0/firebase-app-compat.js"></script>
@@ -1303,6 +1349,109 @@ $('imp-file').addEventListener('change',e=>{
   }catch(err){flash('That file could not be read.');}};
   r.readAsText(f); e.target.value='';
 });
+
+/* ---------- voice capture ----------
+   One utterance per item. "Remove milk" takes one off. Chrome on Android
+   ends recognition after each phrase, so it gets restarted while the sheet is open. */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let rec=null, voiceOn=false, restartT=null;
+
+function voiceOpen(){
+  if(!SR){ $('new-name').focus(); flash('This browser has no voice input — type it instead.'); return; }
+  voiceOn=true;
+  $('v-log').innerHTML='';
+  $('v-heard').textContent='';
+  $('v-hint').textContent='Listening…';
+  $('voice').classList.add('on');
+  $('v-pulse').className='vpulse live';
+  listen();
+}
+function voiceClose(){
+  voiceOn=false;
+  clearTimeout(restartT);
+  try{ if(rec) rec.abort(); }catch(e){}
+  rec=null;
+  $('voice').classList.remove('on');
+  draw();
+}
+function listen(){
+  if(!voiceOn) return;
+  try{ if(rec) rec.abort(); }catch(e){}
+  rec=new SR();
+  rec.lang='en-US';
+  rec.interimResults=true;
+  rec.continuous=false;
+  rec.onresult=e=>{
+    let done='', partial='';
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const r=e.results[i];
+      if(r.isFinal) done+=r[0].transcript; else partial+=r[0].transcript;
+    }
+    $('v-heard').textContent=(done||partial).trim();
+    if(done.trim()) heard(done.trim());
+  };
+  rec.onerror=ev=>{
+    if(ev.error==='not-allowed'||ev.error==='service-not-allowed'){
+      voiceOn=false;
+      $('v-pulse').className='vpulse idle';
+      $('v-hint').textContent='Microphone blocked. Allow it in the padlock menu, then try again.';
+      return;
+    }
+    if(ev.error==='no-speech'||ev.error==='aborted'||ev.error==='network') return;
+    $('v-hint').textContent='Voice error: '+ev.error;
+  };
+  rec.onend=()=>{ if(voiceOn){ clearTimeout(restartT); restartT=setTimeout(listen,160); } };
+  try{ rec.start(); }
+  catch(e){ clearTimeout(restartT); restartT=setTimeout(listen,320); }
+}
+
+function vlog(html,cls){
+  const d=document.createElement('div');
+  d.className='vitem'+(cls?' '+cls:'');
+  d.innerHTML=html;
+  $('v-log').prepend(d);
+}
+
+function heard(text){
+  const lines=parseNote(text);
+  if(!lines.length) return;
+  let any=false;
+  lines.forEach(l=>{
+    if(l.rm){
+      const hit=items.filter(i=>norm(i.name)===l.base);
+      if(hit.length){
+        items=items.filter(i=>norm(i.name)!==l.base);
+        vlog(esc(l.label)+'<span class="where">removed</span>','gone');
+      } else vlog(esc(l.label)+'<span class="where">not on the list</span>','gone');
+      any=true; return;
+    }
+    const dupe=items.find(i=>!i.done&&norm(i.name)===l.base);
+    if(dupe){
+      dupe.snoozed=false; dupe.fresh=true;
+      vlog(esc(dupe.name)+'<span class="where">already on the list</span>');
+      any=true; return;
+    }
+    const label=l.label.replace(/^\w/,c=>c.toUpperCase());
+    addItem(label,true);
+    const it=items[items.length-1];
+    vlog(esc(it.name)+'<span class="where">'+esc(store(it.stores[0]).name)+' · '+esc(it.cat)+'</span>');
+    any=true;
+  });
+  if(any){ $('v-heard').textContent=''; save(); }
+}
+
+$('mic').addEventListener('click',voiceOpen);
+$('v-close').addEventListener('click',voiceClose);
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&voiceOn) voiceClose(); });
+
+/* launched from the home-screen icon or the side key */
+if(new URLSearchParams(location.search).get('voice')==='1'){
+  window.addEventListener('load',()=>setTimeout(voiceOpen,250));
+}
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
 
 load();
 </script>
