@@ -464,7 +464,7 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
        href="https://github.com/Eli-Meyer42/Shopping/deployments">Deploy history</a>
   </div>
 
-  <p class="buildstamp">Build 13 · 20 Nov 2026</p>
+  <p class="buildstamp">Build 14 · 20 Nov 2026</p>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/12.11.0/firebase-app-compat.js"></script>
@@ -1843,10 +1843,16 @@ $('mic').addEventListener('click',voiceOpen);
 $('v-close').addEventListener('click',voiceClose);
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&voiceOn) voiceClose(); });
 
-/* launched from the home-screen icon or the side key */
-if(new URLSearchParams(location.search).get('voice')==='1'){
+/* Launched from the home-screen icon or the side key. The flag is consumed
+   once and wiped from the address, so reloading later doesn't reopen the mic. */
+(function(){
+  const q=new URLSearchParams(location.search);
+  if(q.get('voice')!=='1') return;
+  q.delete('voice');
+  const rest=q.toString();
+  try{ history.replaceState(null,'',location.pathname+(rest?'?'+rest:'')+location.hash); }catch(e){}
   window.addEventListener('load',()=>setTimeout(voiceOpen,250));
-}
+})();
 
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
