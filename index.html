@@ -57,6 +57,18 @@
   .focusbar span.lbl{flex:1;}
   .focusbar button{border:none;background:rgba(255,255,255,.16);color:#fff;font:inherit;font-size:14px;
     font-weight:600;padding:7px 12px;border-radius:9px;cursor:pointer;}
+  /* a hunch the app has about you — never applied until you say so */
+  .hunch{margin-top:14px;background:var(--surface);border:1px solid var(--accent);
+    border-radius:16px;padding:13px 14px;}
+  .hunch .why{font-size:12px;letter-spacing:.04em;text-transform:uppercase;
+    color:var(--accent);font-weight:700;margin-bottom:5px;}
+  .hunch p{font-size:14.5px;line-height:1.4;margin-bottom:11px;}
+  .hunch .ev{display:block;font-size:12.5px;color:var(--dim);margin-top:4px;}
+  .hunch .ans{display:flex;gap:9px;}
+  .hunch .ans button{flex:1;font:inherit;font-size:14.5px;font-weight:600;padding:9px 0;
+    border-radius:10px;cursor:pointer;border:1px solid var(--line);
+    background:var(--surface);color:var(--ink);}
+  .hunch .ans button.yes{background:var(--accent);border-color:var(--accent);color:#fff;}
   .flat{margin-top:14px;background:var(--surface);border-radius:16px;border:1px solid var(--line);overflow:hidden;}
   .store{margin-top:14px;background:var(--surface);border-radius:16px;overflow:hidden;
     border:1px solid var(--line);}
@@ -327,6 +339,8 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
   </div>
 </header>
 
+<div class="wrap" id="hunchbox"></div>
+
 <main class="wrap" id="stores"></main>
 
 <div class="wrap">
@@ -437,8 +451,16 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
     <input type="file" id="imp-file" accept=".json" style="display:none">
   </div>
 
+  <div class="lab">What it's picked up</div>
+  <p style="margin-bottom:9px" id="brainnote">Nothing yet.</p>
+  <div class="stack">
+    <button class="btn" id="forget-brain">Forget what it learned</button>
+  </div>
+
   <div class="lab">Activity log</div>
   <p style="margin-bottom:9px" id="logcount">No activity recorded yet.</p>
+  <p class="hint" style="margin-bottom:9px">Every tap, and what the app did about it. This is
+    the same record it learns from, so exporting it shows you exactly what it has to go on.</p>
   <div class="stack">
     <button class="btn" id="exp-log">Export activity log</button>
     <button class="btn" id="clr-log">Clear the log</button>
@@ -464,7 +486,7 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
        href="https://github.com/Eli-Meyer42/Shopping/deployments">Deploy history</a>
   </div>
 
-  <p class="buildstamp">Build 16 · 20 Nov 2026</p>
+  <p class="buildstamp">Build 17 · 20 Nov 2026</p>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/12.11.0/firebase-app-compat.js"></script>
@@ -585,6 +607,15 @@ function classify(name){
 let stores=[{id:'s1',name:'Publix',color:'#1E7B45'},{id:'s2',name:'Kosher market',color:'#7A2E5E'},
   {id:'s3',name:'Whole Foods',color:'#0F6E6B'},{id:'s4',name:'Online',color:'#C2761E'}];
 let learned={}, aliases={}, bought={}, order={}, hist=[], keepUrl='', shut={}, route=ALL.slice(), compact=true;
+
+/* What the app has worked out about how I shop. Small and syncable: the full
+   evidence lives in the activity log, this is only the conclusions.
+   pairs:  sid -> "Produce>Dairy" -> how many times produce was ticked first
+   no:     a suggestion I turned down -> when, and the evidence count then
+   trail:  the run of ticks happening right now (one shopping trip) */
+let brain={pairs:{},no:{},trail:[],trailT:0,trips:0};
+const TRIP_GAP=90*60*1000;      // a 90-minute gap means a new trip
+let hunchOn=null;               // the suggestion currently on screen
 let seq=0, sseq=5, mvId=null, items=[], pendingNote=null, tab='grocery', focus=null;
 
 const norm=s=>String(s).toLowerCase().replace(/[^a-z0-9' ]/g,' ').replace(/\s+/g,' ').trim();
@@ -763,13 +794,36 @@ const STORE=(()=>{
 /* ---------- activity log ----------
    Kept out of the synced payload on purpose: it's for debugging, it's local
    to this device, and it shouldn't bloat every cloud write. */
-const LOG_KEY='shop-log-1', LOG_MAX=600;
-let actlog=[];
+const LOG_KEY='shop-log-1', LOG_MAX=3000;
+let actlog=[], logT=null;
 function log(kind,detail){
   actlog.push({t:Date.now(),k:kind,d:detail===undefined?'':String(detail)});
   if(actlog.length>LOG_MAX) actlog=actlog.slice(-LOG_MAX);
-  try{ STORE.set(LOG_KEY,JSON.stringify(actlog)); }catch(e){}
+  clearTimeout(logT);                       /* a burst of taps is one write */
+  logT=setTimeout(()=>{try{ STORE.set(LOG_KEY,JSON.stringify(actlog)); }catch(e){}},250);
 }
+
+/* Every tap, before the handler runs. The entries the handler then writes sit
+   underneath it in the log, so the export reads as tap → what the app did. */
+function tapLabel(el){
+  const aria=el.getAttribute('aria-label');
+  if(aria) return aria;
+  const row=el.closest('.row');
+  if(row&&el.classList.contains('tick')) return 'tick: '+rowName(row);
+  if(row) return (el.tagName==='BUTTON'?'button on ':'row ')+rowName(row);
+  const sh=el.closest('.store-head'); if(sh) return 'store header: '+txt(sh,'h2');
+  const ah=el.closest('.aisle-head'); if(ah) return 'aisle header: '+txt(ah,'.nm');
+  const t=(el.textContent||'').trim().replace(/\s+/g,' ').slice(0,40);
+  return (el.id?el.id+(t?' ("'+t+'")':''):t||el.className||el.tagName.toLowerCase());
+}
+const txt=(p,sel)=>{const n=p.querySelector(sel);return n?n.textContent.trim():'?';};
+const rowName=r=>{const n=r.querySelector('.label,.nm');
+  return n?n.textContent.trim().replace(/\s+/g,' '):'?';};
+document.addEventListener('click',e=>{
+  const el=e.target.closest('button,.row,.store-head,.aisle-head,.opt,.chip,label');
+  if(!el||el.disabled) return;
+  log('TAP',tapLabel(el)+(tab!=='grocery'?'  ['+tab+']':'')+(focusOn()?'  [focus: '+store(focus).name+']':''));
+},true);
 async function loadLog(){
   try{ const r=await STORE.get(LOG_KEY); if(r) actlog=JSON.parse(r)||[]; }catch(e){ actlog=[]; }
 }
@@ -786,9 +840,15 @@ function logText(){
     'items on list: '+items.filter(i=>!i.done).length+'   stores: '+stores.map(s=>s.name).join(', '),
     'aisle route: '+route.join(' > '),
     'speech api: '+(SR?'yes':'no')+'   agent: '+navigator.userAgent,
-    ''.padEnd(60,'-'), ''
+    '', 'what it has learned:', ...brainText().map(l=>'  '+l),
+    '', ''.padEnd(66,'-'), '',
+    'TAP lines are things you did. The indented lines under each one are what',
+    'the app did about it.', ''
   ].join('\n');
-  return head+actlog.map(e=>stamp(e.t)+'  '+e.k.padEnd(14)+'  '+e.d).join('\n')+'\n';
+  /* taps flush left, the app's own doing indented under them */
+  return head+actlog.map(e=>e.k==='TAP'
+    ? stamp(e.t)+'  '+e.d
+    : stamp(e.t)+'      '+e.k.padEnd(14)+'  '+e.d).join('\n')+'\n';
 }
 
 /* ---------- cloud sync (Firebase Realtime Database) ----------
@@ -855,7 +915,7 @@ function cloudPush(){
 }
 
 let rev=0;
-function snap(){ return {items,stores,learned,aliases,bought,order,hist,keepUrl,shut,route,compact,seq,sseq,patches,focus,rev}; }
+function snap(){ return {items,stores,learned,aliases,bought,order,hist,keepUrl,shut,route,compact,seq,sseq,patches,focus,brain,rev}; }
 function applyState(d){
   if(!d||!d.items) return false;
   items=d.items; stores=d.stores||stores; learned=d.learned||{}; aliases=d.aliases||{};
@@ -863,6 +923,7 @@ function applyState(d){
   keepUrl=d.keepUrl||''; shut=d.shut||{}; compact=d.compact!==false;
   seq=d.seq||items.length; sseq=d.sseq||5;
   patches=d.patches||{}; focus=d.focus||null; rev=d.rev||0;
+  brain=Object.assign({pairs:{},no:{},trail:[],trailT:0,trips:0},d.brain||{});
   route=(d.route||ALL).filter(c=>typeof c==='string'&&c.trim()).map(c=>OLD[c]||c);
   route=route.filter((c,i)=>route.indexOf(c)===i);
   if(!route.includes('Other')) route.push('Other');
@@ -1058,8 +1119,8 @@ const daysSince=name=>{
 
 function flip(id,row,inCart){
   const go=()=>{const it=items.find(x=>x.id===id); it.done=!it.done; it.fresh=false;
-    if(it.done) markBought(it.name); else unmarkBought(it.name);
-    log(it.done?'check':'uncheck',it.name); draw(); save();};
+    if(it.done){ markBought(it.name); noteTick(it); } else unmarkBought(it.name);
+    log(it.done?'check':'uncheck',it.name+' ('+it.cat+')'); draw(); save();};
   if(inCart||matchMedia('(prefers-reduced-motion: reduce)').matches){go();return;}
   row.classList.add('leaving'); setTimeout(go,160);
 }
@@ -1233,6 +1294,104 @@ function drawSnoozed(host){
   wrap.appendChild(body); host.appendChild(wrap);
 }
 
+/* ---------- learning from how I actually shop ----------
+   Every tick during a trip is compared with the aisles already ticked on that
+   trip: "produce came before dairy, again." Counting pairs rather than whole
+   routes means a half-finished trip still teaches it something, and one odd
+   trip can't overturn ten normal ones. Nothing here changes the app on its
+   own — it only ever produces a suggestion. */
+
+function noteTick(it){
+  const now=Date.now();
+  if(now-(brain.trailT||0)>TRIP_GAP){        // new trip
+    brain.trail=[]; brain.trips=(brain.trips||0)+1;
+    log('trip','started trip #'+brain.trips);
+  }
+  brain.trailT=now;
+  const cat=route.includes(it.cat)?it.cat:'Other';
+  it.stores.forEach(sid=>{
+    const seen=brain.trail.filter(e=>e.sid===sid).map(e=>e.cat);
+    const p=brain.pairs[sid]=brain.pairs[sid]||{};
+    seen.forEach(before=>{ if(before!==cat) p[before+'>'+cat]=(p[before+'>'+cat]||0)+1; });
+    brain.trail.push({sid,cat});
+  });
+  if(brain.trail.length>120) brain.trail=brain.trail.slice(-120);
+}
+
+/* how many times A was ticked before B, and the other way round */
+const beat=(sid,a,b)=>((brain.pairs[sid]||{})[a+'>'+b])||0;
+
+/* The one aisle swap the evidence most clearly supports, or nothing.
+   One swap at a time: small, obvious, and easy to undo. */
+const MIN_EV=3;                 // needs to have happened at least three times
+function hunch(){
+  for(const s of stores){
+    const o=aisleOrder(s.id).filter(c=>items.some(i=>i.stores.includes(s.id)&&!i.done&&i.cat===c)
+      || (brain.pairs[s.id]&&Object.keys(brain.pairs[s.id]).some(k=>k.split('>').includes(c))));
+    for(let i=0;i<o.length-1;i++){
+      const a=o[i], b=o[i+1];
+      const ba=beat(s.id,b,a), ab=beat(s.id,a,b);
+      if(ba<MIN_EV||ba<ab*2+1) continue;                 // not clear enough
+      const id='ord|'+s.id+'|'+b+'|'+a;
+      const turned=brain.no[id];
+      if(turned&&ba<turned.ev+MIN_EV) continue;          // asked and told no; wait for more
+      return {id,kind:'order',sid:s.id,cat:b,above:a,ev:ba,against:ab,
+        text:'At '+s.name+' you reach <b>'+esc(b)+'</b> before <b>'+esc(a)+'</b>. '+
+             'Move '+esc(b)+' above '+esc(a)+' in that store’s order?',
+        why:ba+' trip'+(ba===1?'':'s')+' that way'+(ab?', '+ab+' the other':'')};
+    }
+  }
+  return null;
+}
+
+function applyHunch(h){
+  const o=aisleOrder(h.sid);
+  o.splice(o.indexOf(h.cat),1);
+  o.splice(o.indexOf(h.above),0,h.cat);
+  order[h.sid]=o;
+  delete brain.no[h.id];
+  log('learned',store(h.sid).name+': '+h.cat+' now above '+h.above+' (you said yes)');
+  hunchOn=null; draw(); save();
+  flash(h.cat+' moved above '+h.above+' at '+store(h.sid).name+'. Undo it any time with the arrows.');
+}
+function refuseHunch(h){
+  brain.no[h.id]={t:Date.now(),ev:h.ev};
+  log('learned',"didn't take the suggestion: "+h.cat+' above '+h.above+' at '+store(h.sid).name);
+  hunchOn=null; draw(); save();
+  flash('Left as it is. It won’t ask again until it sees a good deal more.');
+}
+
+function drawHunch(){
+  const box=$('hunchbox');
+  if(tab!=='grocery'){ box.innerHTML=''; return; }
+  if(hunchOn){                               // already handled some other way?
+    const o=aisleOrder(hunchOn.sid);
+    if(o.indexOf(hunchOn.cat)<o.indexOf(hunchOn.above)) hunchOn=null;
+  }
+  const h=hunchOn||(hunchOn=hunch());
+  if(!h){ box.innerHTML=''; return; }
+  box.innerHTML='<div class="hunch"><div class="why">Noticed something</div>'+
+    '<p>'+h.text+'<span class="ev">'+esc(h.why)+'</span></p>'+
+    '<div class="ans"><button class="yes" id="h-yes">Yes, do it</button>'+
+    '<button id="h-no">No thanks</button></div></div>';
+  $('h-yes').addEventListener('click',()=>applyHunch(h));
+  $('h-no').addEventListener('click',()=>refuseHunch(h));
+}
+
+/* plain-English readout of the conclusions, for settings and the log export */
+function brainText(){
+  const out=[];
+  stores.forEach(s=>{
+    const p=brain.pairs[s.id]; if(!p) return;
+    const top=Object.entries(p).filter(([,n])=>n>=MIN_EV).sort((a,b)=>b[1]-a[1]).slice(0,6);
+    if(top.length) out.push(s.name+': '+top.map(([k,n])=>k.replace('>',' before ')+' ('+n+')').join(', '));
+  });
+  if(brain.trips) out.unshift('trips watched: '+brain.trips);
+  const no=Object.keys(brain.no).length;
+  if(no) out.push('suggestions turned down: '+no);
+  return out.length?out:['nothing yet — it needs a few shopping trips.'];
+}
+
 /* each store is walked in its own order */
 function aisleOrder(sid){
   const saved=(order[sid]||[]).filter(c=>route.includes(c));
@@ -1314,6 +1473,7 @@ function drawTail(){
   if(!done.length) cart.innerHTML='<p class="hint">Tap an item to drop it in here.</p>';
   else done.forEach(it=>cart.appendChild(makeRow(it,true)));
   $('tally').textContent=done.length?done.length+' in cart':'';
+  drawHunch();
   if(typeof disarm==='function') disarm();
   footIdle();
 }
@@ -1455,6 +1615,7 @@ function drawRoute(){
   $('logcount').textContent=actlog.length
     ? actlog.length+' entries recorded. Export it and send me the file if something misbehaves.'
     : 'No activity recorded yet.';
+  $('brainnote').innerHTML=brainText().map(esc).join('<br>');
   $('hist-note').textContent=hist.length
     ? 'Remembers the last '+hist.length+' line'+(hist.length===1?'':'s')+' it imported. Trimming the top of the note is fine — it finds where the note picks up.'
     : 'Nothing imported yet.';
@@ -1596,6 +1757,12 @@ $('wipe').addEventListener('click',()=>{
 });
 
 $('reset-snap').addEventListener('click',()=>{hist=[];save();drawRoute();flash('Note history forgotten.');});
+$('forget-brain').addEventListener('click',()=>{
+  brain={pairs:{},no:{},trail:[],trailT:0,trips:0}; hunchOn=null;
+  log('forget','cleared what it had learned');
+  save(); drawRoute(); draw();
+  flash('Forgotten. Your aisle order stays as it is — it just starts watching again.');
+});
 
 $('exp').addEventListener('click',()=>{
   const blob=new Blob([JSON.stringify({items,stores,learned,hist,keepUrl,route,compact,seq,sseq},null,1)],{type:'application/json'});
