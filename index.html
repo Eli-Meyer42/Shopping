@@ -464,7 +464,7 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
        href="https://github.com/Eli-Meyer42/Shopping/deployments">Deploy history</a>
   </div>
 
-  <p class="buildstamp">Build 14 · 20 Nov 2026</p>
+  <p class="buildstamp">Build 16 · 20 Nov 2026</p>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/12.11.0/firebase-app-compat.js"></script>
@@ -550,6 +550,15 @@ const RULES=[
 ];
 
 const look=k=>DICT[k]||DICT[k.replace(/(es|s)$/,'')]||null;
+
+/* "meat knives" is a knife, not meat. When a phrase ends in a thing-word,
+   that wins over any food word earlier in it. */
+const EQUIP=new Set(['knife','knives','board','boards','rack','racks','holder','holders','opener',
+  'openers','grinder','grater','peeler','masher','whisk','spatula','tongs','ladle','strainer',
+  'colander','thermometer','scale','timer','pan','pans','pot','pots','skillet','tray','trays',
+  'mug','mugs','cutlery','utensil','utensils','mixer','blender','kettle','toaster','press',
+  'sharpener','cutter','slicer','scoop','mold','molds','rolling pin','container','containers',
+  'bowl','bowls','lid','lids','jar','jars','dispenser','organizer','stand','hook','hooks','basket','baskets']);
 /* every result is [ [storeIds…], aisle ] */
 const pair=v=>[Array.isArray(v[0])?v[0].slice():[v[0]], v[1]];
 
@@ -564,6 +573,7 @@ function classify(name){
     hit=look(w[w.length-1]);                        // head noun: "orange soda" -> soda
     if(hit) return pair(hit);
   }
+  if(w.length>1&&EQUIP.has(w[w.length-1])) return [[P],'Other'];   // a thing, not a food
   for(const [re,st,ct] of RULES){ if(re.test(n)) return [[st],ct]; }
   let best=null,len=0;                              // longest contained known item
   for(const key in DICT){ if(key.length>3 && key.length>len && n.includes(key)){best=DICT[key];len=key.length;} }
@@ -578,6 +588,19 @@ let learned={}, aliases={}, bought={}, order={}, hist=[], keepUrl='', shut={}, r
 let seq=0, sseq=5, mvId=null, items=[], pendingNote=null, tab='grocery', focus=null;
 
 const norm=s=>String(s).toLowerCase().replace(/[^a-z0-9' ]/g,' ').replace(/\s+/g,' ').trim();
+
+/* Looser than norm(): the key used to decide "this is the same thing".
+   Ignores filler words and plurals, so "red wines", "the red wine" and
+   "red wine" all land on one key and can never become two entries.
+   Never shown to anyone — display always uses the original name. */
+const FILLER=new Set(['a','an','the','some','of','for','my','our','more','extra']);
+const sing=w=>w.length<4?w
+  :/ies$/.test(w)?w.slice(0,-3)+'y'
+  :/(ches|shes|sses|xes|oes)$/.test(w)?w.slice(0,-2)
+  :(/s$/.test(w)&&!/ss$/.test(w))?w.slice(0,-1):w;
+const key=s=>{const w=norm(s).split(' ').filter(x=>x&&!FILLER.has(x)).map(sing);
+  return w.length?w.join(' '):norm(s);};
+
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const store=id=>stores.find(s=>s.id===id)||stores[0];
@@ -592,7 +615,9 @@ const ERRAND_WORDS=['curtain','blind','lamp','chair','table','desk','shelf','she
   'dress','shoes','sneakers','socks','jacket','coat','hat','belt','watch','jewel','vacuum','fan',
   'heater','humidifier','air purifier','mattress','pillow','duvet','blanket','sheets','stroller',
   'car seat','crib','helmet','bike','scooter','ticket','stamps','envelope','ink','cartridge',
-  'furniture','planter','hardware'];
+  'furniture','planter','hardware',
+  'knife','knives','thermometer','grinder','grater','peeler','spatula','tongs','colander',
+  'skillet','cutlery','utensil','blender','kettle','toaster','sharpener','slicer','organizer'];
 const ERRAND_HINTS=new RegExp('\\b('+ERRAND_WORDS.join('|')+')', 'i');
 
 function whichList(st,ct,name){
@@ -600,7 +625,8 @@ function whichList(st,ct,name){
   if(l&&l[2]) return l[2];
   if(st.length===1&&st[0]==='s4') return 'errand';   // online-only store
   if(ct!=='Other') return 'grocery';                 // the dictionary knows it: it's food shopping
-  return ERRAND_HINTS.test(name)?'errand':'grocery'; // only unknowns get judged on wording
+  const lastWord=norm(name).split(' ').pop();
+  return (ERRAND_HINTS.test(name)||EQUIP.has(lastWord))?'errand':'grocery';
 }
 function addItem(name,fresh,forceList){
   const [st,ct]=classify(name);
@@ -647,7 +673,7 @@ function mergeDupes(){
   const groups={}, drop=[];
   items.forEach(it=>{
     if(it.done) return;
-    const k=norm(it.name);
+    const k=key(it.name);
     (groups[k]=groups[k]||[]).push(it);
   });
   for(const k in groups){
@@ -841,6 +867,10 @@ function applyState(d){
   route=route.filter((c,i)=>route.indexOf(c)===i);
   if(!route.includes('Other')) route.push('Other');
   migrate();
+  /* One thing bought once = one entry, however it got in. Two entries for the
+     same thing in two stores each kept their own tick, so crossing it off at
+     one shop left the other standing. */
+  mergeDupes();
   return true;
 }
 
@@ -920,7 +950,7 @@ function runImport(text,force){
 
   const added=[];
   for(const k in want){
-    const have=items.filter(i=>!i.done&&norm(i.name)===k).length;
+    const have=items.filter(i=>!i.done&&key(i.name)===key(k)).length;
     let n=Math.max(0,want[k]-have);
     const label=(neu.find(l=>!l.rm&&l.base===k)||{}).label||k;
     while(n-->0){ addItem(label,true); added.push(label); }
@@ -1505,7 +1535,7 @@ $('do-clip').addEventListener('click',async()=>{
 $('add-btn').addEventListener('click',()=>{
   const box=$('new-name'), v=box.value.trim();
   if(!v){box.focus();return;}
-  const dupe=items.find(i=>!i.done&&norm(i.name)===norm(v));
+  const dupe=items.find(i=>!i.done&&key(i.name)===key(v));
   if(dupe){
     box.value='';
     const was=listOf(dupe);
@@ -1820,7 +1850,7 @@ function heard(text){
       }
       any=true; return;
     }
-    const dupe=items.find(i=>!i.done&&norm(i.name)===j.base);
+    const dupe=items.find(i=>!i.done&&key(i.name)===key(j.base));
     if(dupe){
       dupe.snoozed=false; dupe.fresh=true;
       vlog(esc(dupe.name)+'<span class="where">already on the list</span>');
