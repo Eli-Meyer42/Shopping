@@ -425,7 +425,7 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
        href="https://github.com/Eli-Meyer42/Shopping/deployments">Deploy history</a>
   </div>
 
-  <p class="buildstamp">Build 11 · 20 Nov 2026</p>
+  <p class="buildstamp">Build 12 · 20 Nov 2026</p>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/12.11.0/firebase-app-compat.js"></script>
@@ -467,6 +467,31 @@ feed(K,'Drinks',['bartenura','bartenura wine','bartanure wine','wine','grape jui
 feed(P,'Drinks',['whiskey','beer','coke zero','coke','soda','orange juice','juice','seltzer','water','lemonade','sparkling water','energy drink','iced tea','apple juice','vodka']);
 feed(K,'Household',['candles','paraffin oil','shabbos candles','shabbat candles','havdalah candle']);
 feed(P,'Household',['parchment paper','deodorant','laundry pods','laundry detergent','fabric softener','dish soap','sponges','paper towels','toilet paper','napkins','plates','straws','disposable bowls','disposable cups','ziplocks','small ziplocks','sandwich zip lock bags','sandwich bags','aluminum foil','tin foil','batteries','double a batteries','trash bags','shampoo','conditioner','toothpaste','toothbrush','soap','tissues','diapers','wipes','spray mint','mini vacuum cleaner','light bulbs','cleaning spray','bleach','floss','razors','sunscreen','band aids','air freshener']);
+
+feed(P,'Produce',['turnip','turnips','parsnip','parsnips','arugula','endive','celery root','kohlrabi',
+  'bok choy','swiss chard','collard greens','artichoke','okra','jicama','fennel','shallot','shallots',
+  'scallion','green onion','chives','basil','mint','rosemary','thyme','sage','oregano','bay leaves',
+  'horseradish','turmeric','sprouts','bean sprouts','snap peas','snow peas','butternut squash',
+  'acorn squash','spaghetti squash','plantain','papaya','kiwi','apricot','nectarine','fig','figs',
+  'raspberries','blackberries','cranberries','clementines','tangerine','cantaloupe','honeydew',
+  'iceberg lettuce','mixed greens','spring mix','coleslaw mix','baby carrots','cherry tomatoes',
+  'grape tomatoes','corn on the cob','sweet corn','green cabbage','red cabbage','red onion',
+  'yellow onion','white onion','russet potatoes','yukon potatoes','baby potatoes']);
+feed(P,'Dairy & Eggs',['creamer','coffee creamer','half & half','buttermilk','ricotta','mascarpone',
+  'goat cheese','blue cheese','swiss cheese','provolone','american cheese','havarti','brie','cheddar',
+  'egg whites','greek yogurt','kefir','whipping cream','clotted cream','queso fresco','cream cheese spread']);
+feed(P,'Dry Goods',['baking mix','pancake mix','brown sugar','powdered sugar','confectioners sugar',
+  'cornmeal','semolina','matzo meal','potato starch','arrowroot','gelatin','pectin','molasses',
+  'maple syrup','agave','almond butter','sunflower butter','nutella','applesauce','pickles','relish',
+  'capers','anchovies','sardines','coconut flakes','almond flour','oat milk','almond milk','soy milk',
+  'chicken stock','beef stock','vegetable broth','bouillon','curry powder','chili powder','onion powder',
+  'garlic powder','cinnamon','nutmeg','ginger powder','cloves','cardamom','saffron','bay leaf',
+  'red pepper flakes','italian seasoning','everything bagel seasoning','balsamic vinegar',
+  'apple cider vinegar','rice vinegar','worcestershire','teriyaki','sriracha','pesto','alfredo']);
+feed(P,'Household',['dryer sheets','stain remover','scrubber','steel wool','mop','broom','dustpan',
+  'rubber gloves','garbage bags','freezer bags','cling wrap','plastic wrap','wax paper','coffee filters',
+  'air filter','hand soap','body wash','lotion','cotton swabs','cotton balls','nail clippers','tweezers',
+  'first aid','pain reliever','vitamins','mouthwash','dental floss','contact solution']);
 
 const RULES=[
   [/\boil\b/,P,'Dry Goods'],[/juice/,P,'Drinks'],
@@ -515,13 +540,25 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const store=id=>stores.find(s=>s.id===id)||stores[0];
 
-/* unknown to the sorter, or bought online = not part of a grocery run */
+/* Groceries is the default. Only things that read as clearly not-food-shop
+   go to Errands — an unrecognised word is usually just a food I don't know. */
+const ERRAND_WORDS=['curtain','blind','lamp','chair','table','desk','shelf','shelv','rug','carpet',
+  'frame','mirror','vase','charger','cable','cord','adapter','headphone','earbud','speaker','mouse',
+  'keyboard','monitor','laptop','tablet','printer','phone case','screen protector','tool','drill',
+  'screwdriver','wrench','hammer','nail','screws','ladder','hose','tape measure','gift','present',
+  'toy','puzzle','book','magazine','game','console','controller','clothes','shirt','pants','jeans',
+  'dress','shoes','sneakers','socks','jacket','coat','hat','belt','watch','jewel','vacuum','fan',
+  'heater','humidifier','air purifier','mattress','pillow','duvet','blanket','sheets','stroller',
+  'car seat','crib','helmet','bike','scooter','ticket','stamps','envelope','ink','cartridge',
+  'furniture','planter','hardware'];
+const ERRAND_HINTS=new RegExp('\\b('+ERRAND_WORDS.join('|')+')', 'i');
+
 function whichList(st,ct,name){
   const l=learned[norm(name)];
   if(l&&l[2]) return l[2];
-  if(ct==='Other') return 'errand';
-  if(st.length===1&&st[0]==='s4') return 'errand';
-  return 'grocery';
+  if(st.length===1&&st[0]==='s4') return 'errand';   // online-only store
+  if(ct!=='Other') return 'grocery';                 // the dictionary knows it: it's food shopping
+  return ERRAND_HINTS.test(name)?'errand':'grocery'; // only unknowns get judged on wording
 }
 function addItem(name,fresh,forceList){
   const [st,ct]=classify(name);
@@ -590,8 +627,26 @@ function mergeDupes(){
   return drop.length;
 }
 
+/* Items exiled to Errands only because the old rule treated "unknown" as
+   "not a grocery". Anything moved there by hand has a learned entry, so it
+   is left alone. */
+function rehomeErrands(){
+  let n=0;
+  items.forEach(i=>{
+    if(i.list!=='errand') return;
+    if(learned[norm(i.name)]) return;              // placed deliberately
+    const [st,ct]=classify(i.name);
+    if(ct==='Other'&&ERRAND_HINTS.test(i.name)) return;   // genuinely an errand
+    i.list='grocery';
+    if(i.cat==='Other') i.cat=ct;
+    n++;
+  });
+  if(n) log('rehome',n+' item(s) moved back to groceries');
+  return n;
+}
+
 /* one-off additions, applied once per device */
-const PATCHES={ house:addHouse, dedupe2:mergeDupes };
+const PATCHES={ house:addHouse, dedupe2:mergeDupes, rehome1:rehomeErrands };
 let patches={};
 function applyPatches(){
   let any=false;
