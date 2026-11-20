@@ -183,8 +183,45 @@ h1,h2{font-family:'Outfit',sans-serif;font-weight:600;letter-spacing:-.02em;}
 .tick{flex:1 1 auto;min-width:0;align-items:center;gap:9px;padding:9px 0;height:auto;}
 .label{white-space:normal;overflow:visible;line-height:1.2;font-weight:500;}
 .box{width:19px;height:19px;border-radius:6px;flex:none;}
-.nap,.move{height:30px;width:23px;margin:0;opacity:.55;}
-.nap svg,.move svg{width:15px;height:15px;}
+/* row actions read as real buttons, not faint glyphs */
+.nap,.move,.rowbtn{height:29px;width:29px;margin:0 0 0 3px;opacity:1;border-radius:8px;
+  background:var(--bg);border:1px solid var(--line);color:var(--soft);
+  display:grid;place-items:center;flex:none;}
+.nap svg,.move svg,.rowbtn svg{width:16px;height:16px;}
+.nap:active,.move:active,.rowbtn:active{background:var(--line);}
+.trash{color:var(--warn);}
+.row{padding-right:5px;padding-left:8px;}
+.tick{padding-right:2px;gap:8px;}
+.label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.box{width:18px;height:18px;}
+/* one item per line: most aisles hold 1-3 things, so a second column was
+   mostly empty, and it left no room for a readable name plus real buttons */
+.body{grid-template-columns:1fr;gap:6px;}
+.flat{grid-template-columns:1fr;gap:6px;}
+.row{min-height:44px;}
+.label{font-size:16px;}
+/* aisle reorder arrows */
+.aord{height:28px;width:28px;flex:none;margin-left:4px;border-radius:8px;
+  background:var(--surface);border:1px solid var(--line);color:var(--soft);
+  display:grid;place-items:center;cursor:pointer;padding:0;}
+.aord svg{width:15px;height:15px;}
+.aord:disabled{opacity:.3;}
+.aord:active:not(:disabled){background:var(--line);}
+.aisle-head{height:38px;}
+/* history */
+.hist{display:block;padding:7px;}
+.histrow{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+  background:var(--tile);border:1px solid var(--line);border-radius:12px;
+  padding:10px 12px;margin-bottom:6px;font:inherit;font-size:15px;color:var(--ink);cursor:pointer;}
+.histrow .hn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;}
+.histrow .hm{font-size:12.5px;color:var(--faint);white-space:nowrap;}
+.histrow .hp{width:22px;text-align:center;color:var(--soft);font-weight:600;}
+.histrow.due{border-color:var(--warn);}
+.histrow.due .hm{color:var(--warn);}
+/* four tabs need to fit */
+.tabs{overflow-x:auto;scrollbar-width:none;}
+.tabs::-webkit-scrollbar{display:none;}
+.tabs button{font-size:13.5px;padding:9px 10px;white-space:nowrap;}
 .pad{display:none;}
 .cart .row{border:none;background:none;border-radius:0;min-height:0;padding:7px 4px;}
 .flat{border-radius:20px;padding:9px;display:grid;grid-template-columns:repeat(auto-fill,minmax(156px,1fr));
@@ -283,6 +320,7 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
       <button id="tab-g">Groceries <em id="n-g"></em></button>
       <button id="tab-e">Errands <em id="n-e"></em></button>
       <button id="tab-p">Parked <em id="n-p"></em></button>
+      <button id="tab-h">History <em id="n-h"></em></button>
     </div>
     <div class="focusbar" id="focusbar" style="display:none"></div>
     <div class="focusbar warnbar" id="alertbar" style="display:none"></div>
@@ -368,8 +406,9 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
   <div class="grab"></div>
   <h3>Settings</h3>
 
-  <div class="lab">Aisle route</div>
-  <p style="margin-bottom:9px">Put these in the order you walk the store.</p>
+  <div class="lab">Aisles</div>
+  <p style="margin-bottom:9px">Add or remove aisle names here. The order you walk them is set
+  per store, with the arrows on each aisle on the main screen.</p>
   <div id="route"></div>
   <div class="inline" style="margin-top:8px">
     <input id="aisle-new" placeholder="New aisle name" autocomplete="off">
@@ -425,7 +464,7 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
        href="https://github.com/Eli-Meyer42/Shopping/deployments">Deploy history</a>
   </div>
 
-  <p class="buildstamp">Build 12 · 20 Nov 2026</p>
+  <p class="buildstamp">Build 13 · 20 Nov 2026</p>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/12.11.0/firebase-app-compat.js"></script>
@@ -436,6 +475,9 @@ const TICK='<svg viewBox="0 0 20 20" fill="none" stroke="#fff" stroke-width="3.2
 const CARET='<svg class="caret" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l5 5 5-5"/></svg>';
 const PARK='<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.6" y="4.2" width="14.8" height="3.6" rx="1"/><path d="M4.2 7.8v7a1.4 1.4 0 0 0 1.4 1.4h8.8a1.4 1.4 0 0 0 1.4-1.4v-7"/><path d="M8.2 11h3.6"/></svg>';
 const EYE='<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M1.8 10S4.7 4.8 10 4.8 18.2 10 18.2 10 15.3 15.2 10 15.2 1.8 10 1.8 10z"/><circle cx="10" cy="10" r="2.2"/></svg>';
+const UPI='<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l5-5 5 5"/></svg>';
+const DNI='<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7.5l5 5 5-5"/></svg>';
+const TRASH='<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5.5h13M8 5.5V3.8h4v1.7M5.5 5.5l.8 10a1.3 1.3 0 0 0 1.3 1.2h4.8a1.3 1.3 0 0 0 1.3-1.2l.8-10"/></svg>';
 const GEAR='<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="10" cy="10" r="2.6"/><path d="M10 2.2v2M10 15.8v2M2.2 10h2M15.8 10h2M4.5 4.5l1.4 1.4M14.1 14.1l1.4 1.4M15.5 4.5l-1.4 1.4M5.9 14.1l-1.4 1.4"/></svg>';
 const FOLD='<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8l4-4 4 4M6 12l4 4 4-4"/></svg>';
 const NAP='<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16.2 12.3A6.6 6.6 0 0 1 7.7 3.8a6.6 6.6 0 1 0 8.5 8.5z"/></svg>';
@@ -532,7 +574,7 @@ function classify(name){
 /* ---------- state ---------- */
 let stores=[{id:'s1',name:'Publix',color:'#1E7B45'},{id:'s2',name:'Kosher market',color:'#7A2E5E'},
   {id:'s3',name:'Whole Foods',color:'#0F6E6B'},{id:'s4',name:'Online',color:'#C2761E'}];
-let learned={}, aliases={}, hist=[], keepUrl='', shut={}, route=ALL.slice(), compact=true;
+let learned={}, aliases={}, bought={}, order={}, hist=[], keepUrl='', shut={}, route=ALL.slice(), compact=true;
 let seq=0, sseq=5, mvId=null, items=[], pendingNote=null, tab='grocery', focus=null;
 
 const norm=s=>String(s).toLowerCase().replace(/[^a-z0-9' ]/g,' ').replace(/\s+/g,' ').trim();
@@ -787,10 +829,11 @@ function cloudPush(){
 }
 
 let rev=0;
-function snap(){ return {items,stores,learned,aliases,hist,keepUrl,shut,route,compact,seq,sseq,patches,focus,rev}; }
+function snap(){ return {items,stores,learned,aliases,bought,order,hist,keepUrl,shut,route,compact,seq,sseq,patches,focus,rev}; }
 function applyState(d){
   if(!d||!d.items) return false;
-  items=d.items; stores=d.stores||stores; learned=d.learned||{}; aliases=d.aliases||{}; hist=d.hist||[];
+  items=d.items; stores=d.stores||stores; learned=d.learned||{}; aliases=d.aliases||{};
+  bought=d.bought||{}; order=d.order||{}; hist=d.hist||[];
   keepUrl=d.keepUrl||''; shut=d.shut||{}; compact=d.compact!==false;
   seq=d.seq||items.length; sseq=d.sseq||5;
   patches=d.patches||{}; focus=d.focus||null; rev=d.rev||0;
@@ -938,6 +981,19 @@ function makeRow(it,inCart,sid,flat){
     '</span><span class="label">'+esc(it.name)+also+'</span>';
   b.addEventListener('click',()=>flip(it.id,row,inCart));
   row.appendChild(b);
+  if(inCart){
+    const tr=document.createElement('button');
+    tr.className='rowbtn trash'; tr.innerHTML=TRASH;
+    tr.setAttribute('aria-label','Delete '+it.name+' — not bought');
+    tr.addEventListener('click',e=>{
+      e.stopPropagation();
+      unmarkBought(it.name);                       // never counted as a purchase
+      items=items.filter(x=>x.id!==it.id);
+      log('trash',it.name+' (removed, not bought)');
+      draw(); save(); flash('Deleted '+it.name+' — not counted as bought.');
+    });
+    row.appendChild(tr);
+  }
   if(!inCart&&listOf(it)!=='parked'){
     const z=document.createElement('button');
     z.className='nap'; z.innerHTML=NAP;
@@ -951,8 +1007,28 @@ function makeRow(it,inCart,sid,flat){
   row.appendChild(m);
   return row;
 }
+function markBought(name){
+  const k=norm(name); (bought[k]=bought[k]||[]).push(Date.now());
+  if(bought[k].length>24) bought[k]=bought[k].slice(-24);
+}
+function unmarkBought(name){
+  const k=norm(name); if(bought[k]) { bought[k].pop(); if(!bought[k].length) delete bought[k]; }
+}
+/* average gap between purchases, in days — null until there are two */
+function cadence(name){
+  const t=bought[norm(name)];
+  if(!t||t.length<2) return null;
+  let sum=0; for(let i=1;i<t.length;i++) sum+=t[i]-t[i-1];
+  return (sum/(t.length-1))/86400000;
+}
+const daysSince=name=>{
+  const t=bought[norm(name)];
+  return t&&t.length?(Date.now()-t[t.length-1])/86400000:null;
+};
+
 function flip(id,row,inCart){
   const go=()=>{const it=items.find(x=>x.id===id); it.done=!it.done; it.fresh=false;
+    if(it.done) markBought(it.name); else unmarkBought(it.name);
     log(it.done?'check':'uncheck',it.name); draw(); save();};
   if(inCart||matchMedia('(prefers-reduced-motion: reduce)').matches){go();return;}
   row.classList.add('leaving'); setTimeout(go,160);
@@ -970,6 +1046,8 @@ function draw(){
   $('n-g').textContent=items.filter(i=>!i.done&&listOf(i)==='grocery'&&!i.snoozed).length||'';
   $('n-e').textContent=items.filter(i=>!i.done&&listOf(i)==='errand'&&!i.snoozed).length||'';
   $('n-p').textContent=items.filter(i=>listOf(i)==='parked').length||'';
+  $('n-h').textContent=Object.keys(bought).length||'';
+  $('tab-h').classList.toggle('cur',tab==='history');
   $('tab-g').classList.toggle('cur',tab==='grocery');
   $('tab-e').classList.toggle('cur',tab==='errand');
   $('tab-p').classList.toggle('cur',tab==='parked');
@@ -994,6 +1072,7 @@ function draw(){
     $('unfocus').addEventListener('click',()=>{focus=null;draw();save();});
   } else fb.style.display='none';
 
+  if(tab==='history'){ drawHistory(host); return drawTail(); }
   if(tab==='parked'){ drawParked(host); return drawTail(); }
   if(tab==='errand'){ drawErrands(host); drawSnoozed(host); return drawTail(); }
 
@@ -1039,20 +1118,33 @@ function draw(){
     sec.appendChild(head);
 
     const body=document.createElement('div'); body.className='body';
-    route.forEach(c=>{
+    const ord=aisleOrder(s.id);
+    const shown=ord.filter(c=>mine.some(i=>c==='Other'?(i.cat===c||!route.includes(i.cat)):i.cat===c));
+    shown.forEach((c,ci)=>{
       const g=c==='Other'
         ? mine.filter(i=>i.cat===c||!route.includes(i.cat))
         : mine.filter(i=>i.cat===c);
-      if(!g.length) return;
       const kk='A'+s.id+'|'+c;
       const open=!shut[kk];
       const h=document.createElement('div');
       h.className='aisle-head'+(open?'':' closed');
-      h.tabIndex=0; h.setAttribute('role','button');
-      h.innerHTML='<span class="nm">'+esc(c)+'</span><span class="num">'+g.length+'</span>'+CARET;
+      h.innerHTML='<span class="nm">'+esc(c)+'</span><span class="num">'+g.length+'</span>';
       const tt=()=>{shut[kk]=!shut[kk];draw();save();};
+      /* reorder this aisle, for this store only */
+      if(shown.length>1){
+        const mk=(dir,label,glyph)=>{
+          const bn=document.createElement('button');
+          bn.className='aord'; bn.innerHTML=glyph;
+          bn.setAttribute('aria-label',label+' '+c+' in '+s.name);
+          bn.disabled=(dir<0&&ci===0)||(dir>0&&ci===shown.length-1);
+          bn.addEventListener('click',e=>{e.stopPropagation();moveAisle(s.id,c,dir);});
+          return bn;
+        };
+        h.appendChild(mk(-1,'Move up',UPI));
+        h.appendChild(mk(1,'Move down',DNI));
+      }
+      h.insertAdjacentHTML('beforeend',CARET);
       h.addEventListener('click',tt);
-      h.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();tt();}});
       body.appendChild(h);
       if(open) g.forEach(it=>body.appendChild(makeRow(it,false,s.id)));
     });
@@ -1109,6 +1201,56 @@ function drawSnoozed(host){
   all.querySelector('.tick').addEventListener('click',()=>{nap.forEach(i=>i.snoozed=false);draw();save();});
   body.appendChild(all);
   wrap.appendChild(body); host.appendChild(wrap);
+}
+
+/* each store is walked in its own order */
+function aisleOrder(sid){
+  const saved=(order[sid]||[]).filter(c=>route.includes(c));
+  route.forEach(c=>{ if(saved.indexOf(c)<0) saved.push(c); });
+  return saved;
+}
+function moveAisle(sid,cat,dir){
+  const o=aisleOrder(sid), i=o.indexOf(cat), j=i+dir;
+  if(i<0||j<0||j>=o.length) return;
+  o.splice(j,0,o.splice(i,1)[0]);
+  order[sid]=o;
+  log('aisle-order',store(sid).name+': '+cat+' '+(dir<0?'up':'down'));
+  draw(); save();
+}
+
+/* what's been bought before, and how often */
+function drawHistory(host){
+  const names=Object.keys(bought);
+  if(!names.length){
+    host.innerHTML='<p class="hint" style="margin-top:22px">Nothing bought yet. '+
+      'Check items off and this fills in \u2014 how often you buy each thing, and when you last did.</p>';
+    return;
+  }
+  const rows=names.map(k=>{
+    const t=bought[k], last=(Date.now()-t[t.length-1])/86400000, every=cadence(k);
+    return {k:k, n:t.length, last:last, every:every,
+            due: every? last/every : 0};
+  }).sort((a,b)=>b.due-a.due||a.last-b.last);
+
+  const box=document.createElement('div'); box.className='flat hist';
+  rows.forEach(r=>{
+    const live=items.some(i=>!i.done&&norm(i.name)===r.k);
+    const d=document.createElement('button');
+    d.className='histrow'+(r.every&&r.due>=1?' due':'');
+    const when=r.last<1?'today':r.last<2?'yesterday':Math.round(r.last)+'d ago';
+    const how=r.every?('about every '+Math.round(r.every)+'d'):(r.n+'\u00d7');
+    d.innerHTML='<span class="hn">'+esc(r.k.replace(/^\w/,c=>c.toUpperCase()))+'</span>'+
+      '<span class="hm">'+when+' \u00b7 '+how+'</span>'+
+      '<span class="hp">'+(live?'\u2713':'+')+'</span>';
+    d.title=live?'Already on the list':'Add it back';
+    d.addEventListener('click',()=>{
+      if(live){ flash('Already on the list.'); return; }
+      addItem(r.k.replace(/^\w/,c=>c.toUpperCase()),true);
+      log('history-add',r.k); draw(); save(); flash('Added '+r.k+'.');
+    });
+    box.appendChild(d);
+  });
+  host.appendChild(box);
 }
 
 function drawParked(host){
@@ -1265,12 +1407,6 @@ function drawRoute(){
   route.forEach((c,i)=>{
     const d=document.createElement('div'); d.className='rt';
     d.innerHTML='<span>'+esc(c)+'</span>';
-    const up=document.createElement('button'); up.textContent='▲'; up.disabled=i===0;
-    up.setAttribute('aria-label','Move '+c+' earlier');
-    up.addEventListener('click',()=>{route.splice(i-1,0,route.splice(i,1)[0]);drawRoute();draw();save();});
-    const dn=document.createElement('button'); dn.textContent='▼'; dn.disabled=i===route.length-1;
-    dn.setAttribute('aria-label','Move '+c+' later');
-    dn.addEventListener('click',()=>{route.splice(i+1,0,route.splice(i,1)[0]);drawRoute();draw();save();});
     const del=document.createElement('button'); del.textContent='×'; del.disabled=c==='Other';
     del.setAttribute('aria-label','Delete the '+c+' aisle');
     del.addEventListener('click',()=>{
@@ -1278,10 +1414,11 @@ function drawRoute(){
       items.forEach(i=>{if(i.cat===c)i.cat='Other';});
       for(const k in learned){ if(learned[k][1]===c) learned[k][1]='Other'; }
       route.splice(i,1);
+      for(const sid in order) order[sid]=order[sid].filter(x=>x!==c);
       drawRoute(); draw(); save();
       flash(n?'“'+c+'” removed · '+n+' item'+(n===1?'':'s')+' moved to Other':'“'+c+'” removed');
     });
-    d.appendChild(up); d.appendChild(dn); d.appendChild(del); r.appendChild(d);
+    d.appendChild(del); r.appendChild(d);
   });
   $('den-c').classList.toggle('cur',compact);
   $('den-r').classList.toggle('cur',!compact);
@@ -1392,6 +1529,7 @@ function disarm(){
 $('tab-g').addEventListener('click',()=>{tab='grocery';disarm();draw();});
 $('tab-e').addEventListener('click',()=>{tab='errand';disarm();draw();});
 $('tab-p').addEventListener('click',()=>{tab='parked';disarm();draw();});
+$('tab-h').addEventListener('click',()=>{tab='history';disarm();draw();});
 
 $('clear-cart').addEventListener('click',()=>{
   const n=items.filter(i=>i.done&&inTab(i)).length;
@@ -1605,6 +1743,7 @@ function splitSpoken(phrase){
 
 const MEANT=/^(i meant( to say)?|no,? i meant|i said|correction|actually,? (i meant|make that)|make that|not that,? )\b[\s:,.-]*/i;
 const SCRATCH=/^(scratch that|delete that|remove that|undo( that)?|never ?mind|forget that)\.?$/i;
+const NOTE=/^(note|remember|for the record|bug|heads up|fyi)\b[\s:,.-]*/i;
 let lastUtterance=null;   // {raw, bases, ids} — what the previous phrase produced
 
 function undoLast(){
@@ -1617,6 +1756,14 @@ function undoLast(){
 function heard(text){
   spoke++;
   log('heard',JSON.stringify(text));
+
+  /* "note I meant apple pie not apple and pie" — goes in the log, changes nothing */
+  if(NOTE.test(text)){
+    const note=text.replace(NOTE,'').trim();
+    log('NOTE',note||'(empty)');
+    vlog('\u201c'+esc(note)+'\u201d<span class="where">noted for debugging</span>');
+    save(); quiet(); return;
+  }
 
   if(SCRATCH.test(norm(text))){
     const n=undoLast();
