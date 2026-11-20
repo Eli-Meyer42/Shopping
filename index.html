@@ -425,7 +425,7 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
        href="https://github.com/Eli-Meyer42/Shopping/deployments">Deploy history</a>
   </div>
 
-  <p class="buildstamp">Build 10 · 20 Nov 2026</p>
+  <p class="buildstamp">Build 11 · 20 Nov 2026</p>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/12.11.0/firebase-app-compat.js"></script>
@@ -507,7 +507,7 @@ function classify(name){
 /* ---------- state ---------- */
 let stores=[{id:'s1',name:'Publix',color:'#1E7B45'},{id:'s2',name:'Kosher market',color:'#7A2E5E'},
   {id:'s3',name:'Whole Foods',color:'#0F6E6B'},{id:'s4',name:'Online',color:'#C2761E'}];
-let learned={}, hist=[], keepUrl='', shut={}, route=ALL.slice(), compact=true;
+let learned={}, aliases={}, hist=[], keepUrl='', shut={}, route=ALL.slice(), compact=true;
 let seq=0, sseq=5, mvId=null, items=[], pendingNote=null, tab='grocery', focus=null;
 
 const norm=s=>String(s).toLowerCase().replace(/[^a-z0-9' ]/g,' ').replace(/\s+/g,' ').trim();
@@ -732,10 +732,10 @@ function cloudPush(){
 }
 
 let rev=0;
-function snap(){ return {items,stores,learned,hist,keepUrl,shut,route,compact,seq,sseq,patches,focus,rev}; }
+function snap(){ return {items,stores,learned,aliases,hist,keepUrl,shut,route,compact,seq,sseq,patches,focus,rev}; }
 function applyState(d){
   if(!d||!d.items) return false;
-  items=d.items; stores=d.stores||stores; learned=d.learned||{}; hist=d.hist||[];
+  items=d.items; stores=d.stores||stores; learned=d.learned||{}; aliases=d.aliases||{}; hist=d.hist||[];
   keepUrl=d.keepUrl||''; shut=d.shut||{}; compact=d.compact!==false;
   seq=d.seq||items.length; sseq=d.sseq||5;
   patches=d.patches||{}; focus=d.focus||null; rev=d.rev||0;
@@ -1499,10 +1499,31 @@ const KEEP_WHOLE=['mac and cheese','salt and pepper','sweet and sour','half and 
   'rice and beans','cream and sugar','chips and salsa','fish and chips'];
 const isKnown=k=>!!(learned[k]||learned[k.replace(/(es|s)$/,'')]||DICT[k]||DICT[k.replace(/(es|s)$/,'')]);
 
+/* words that describe the thing before them, so "challah bread" is one item */
+const HEAD_NOUNS=new Set(['bread','cheese','sauce','juice','oil','milk','butter','cream','powder','mix',
+  'chips','roll','rolls','soup','bar','bars','snack','snacks','stick','sticks','breast','breasts','thigh',
+  'thighs','leg','legs','wing','wings','paste','spread','dressing','seed','seeds','nut','nuts','flake',
+  'flakes','crumbs','water','wine','beer','rice','pasta','cake','pie','bag','bags','box','jar','can','cans',
+  'bottle','bottles','pack','slices','fillet','fillets','loaf','salad','soda','tea','coffee','syrup','dip','dips']);
+
+/* what the recogniser tends to hear instead. Corrections add to this at runtime. */
+const MISHEARD={
+  'hola':'challah','holla':'challah','hollah':'challah','challa':'challah','hallah':'challah',
+  'hala':'challah','holler':'challah','challah bread':'challah',
+  'bomba':'bamba','bambo':'bamba','bam bah':'bamba',
+  'malawak':'malawach','malawa':'malawach','mala walk':'malawach','molewach':'malawach',
+  'bartanure':'bartenura wine','bartenura':'bartenura wine','bar tenura':'bartenura wine',
+  'rugalach':'rugelach','rogalach':'rugelach','ruggle lock':'rugelach','rue gala':'rugelach',
+  'vietnamese crunch':'viennese crunch','vienna crunch':'viennese crunch','venetian crunch':'viennese crunch',
+  'pits with him':'pitsuchim','pizza him':'pitsuchim','pits ocean':'pitsuchim',
+  'coke zero':'coke zero','tater tots':'tater tots'
+};
+const unmishear=k=>aliases[k]||MISHEARD[k]||k;
+
 /* "milk and bananas" or even "milk bananas" -> two items, but only when it's
    unambiguous: the whole phrase isn't a known item and every piece is. */
 function splitSpoken(phrase){
-  const n=norm(phrase);
+  const n=unmishear(norm(phrase));
   if(!n) return [];
   if(isKnown(n)||KEEP_WHOLE.includes(n)) return [n];
   if(/\s+and\s+|\s+plus\s+|\s+then\s+/.test(n)){
@@ -1521,12 +1542,54 @@ function splitSpoken(phrase){
     if(!hit) return [n];                    // anything unrecognised: don't guess, keep it whole
     out.push(hit);
   }
-  return out.length>1?out:[n];
+  /* "challah bread" split into challah + bread — a trailing describing word
+     means it was one item all along */
+  if(out.slice(1).some(p=>HEAD_NOUNS.has(p))) return [n];
+  return out.length>1?out.map(unmishear):[n];
+}
+
+const MEANT=/^(i meant( to say)?|no,? i meant|i said|correction|actually,? (i meant|make that)|make that|not that,? )\b[\s:,.-]*/i;
+const SCRATCH=/^(scratch that|delete that|remove that|undo( that)?|never ?mind|forget that)\.?$/i;
+let lastUtterance=null;   // {raw, bases, ids} — what the previous phrase produced
+
+function undoLast(){
+  if(!lastUtterance||!lastUtterance.ids.length) return 0;
+  const n=lastUtterance.ids.length;
+  items=items.filter(i=>lastUtterance.ids.indexOf(i.id)<0);
+  return n;
 }
 
 function heard(text){
   spoke++;
   log('heard',JSON.stringify(text));
+
+  if(SCRATCH.test(norm(text))){
+    const n=undoLast();
+    log('scratch',n?('undid '+lastUtterance.bases.join(', ')):'nothing to undo');
+    vlog(n?'Undid '+esc(lastUtterance.bases.join(', ')):'Nothing to undo','gone');
+    lastUtterance=null; draw(); save(); quiet(); return;
+  }
+
+  if(MEANT.test(text)){
+    const meant=text.replace(MEANT,'').trim();
+    const was=lastUtterance;
+    const undone=undoLast();
+    if(was&&meant){
+      /* teach it, so the same mishearing fixes itself next time */
+      const wrong=norm(was.raw), right=norm(meant);
+      if(wrong&&right&&wrong!==right){ aliases[wrong]=right; was.bases.forEach(b=>{ if(b!==right) aliases[b]=right; }); }
+      log('correction','heard='+JSON.stringify(was.raw)+' added='+JSON.stringify(was.bases.join(', '))+
+        ' meant='+JSON.stringify(meant)+' | alias saved');
+      vlog('“'+esc(was.bases.join(', '))+'” → '+esc(meant)+'<span class="where">corrected</span>','gone');
+    } else {
+      log('correction','nothing to correct; treating as a new item: '+JSON.stringify(meant));
+    }
+    lastUtterance=null;
+    if(meant) heard(meant);              // add what he actually said
+    else { draw(); save(); }
+    return;
+  }
+
   if(STOP_WORDS.test(norm(text))){
     log('stop-phrase',JSON.stringify(text));
     flash('Stopped listening.');
@@ -1541,6 +1604,7 @@ function heard(text){
   log('parsed',jobs.map(j=>(j.rm?'-':'+')+j.base).join(' | '));
 
   let any=false;
+  const fresh={raw:text,bases:[],ids:[]};
   jobs.forEach(j=>{
     if(j.rm){
       const hit=items.filter(i=>norm(i.name)===j.base);
@@ -1566,8 +1630,10 @@ function heard(text){
     const it=items[items.length-1];
     vlog(esc(it.name)+'<span class="where">'+esc(store(it.stores[0]).name)+' · '+esc(it.cat)+'</span>');
     log('voice-add',it.name+' -> '+store(it.stores[0]).name+' / '+it.cat+' / '+listOf(it));
+    fresh.bases.push(it.name); fresh.ids.push(it.id);
     any=true;
   });
+  lastUtterance=fresh.ids.length?fresh:null;
   if(any){ $('v-heard').textContent=''; save(); }
 }
 
