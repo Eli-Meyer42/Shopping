@@ -486,7 +486,7 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
        href="https://github.com/Eli-Meyer42/Shopping/deployments">Deploy history</a>
   </div>
 
-  <p class="buildstamp">Build 17 · 20 Nov 2026</p>
+  <p class="buildstamp">Build 18 · 22 Nov 2026</p>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/12.11.0/firebase-app-compat.js"></script>
@@ -616,6 +616,7 @@ let learned={}, aliases={}, bought={}, order={}, hist=[], keepUrl='', shut={}, r
 let brain={pairs:{},no:{},trail:[],trailT:0,trips:0};
 const TRIP_GAP=90*60*1000;      // a 90-minute gap means a new trip
 let hunchOn=null;               // the suggestion currently on screen
+let focusAt=0;                  // when focus mode was entered
 let seq=0, sseq=5, mvId=null, items=[], pendingNote=null, tab='grocery', focus=null;
 
 const norm=s=>String(s).toLowerCase().replace(/[^a-z0-9' ]/g,' ').replace(/\s+/g,' ').trim();
@@ -792,16 +793,44 @@ const STORE=(()=>{
 })();
 
 /* ---------- activity log ----------
-   Kept out of the synced payload on purpose: it's for debugging, it's local
-   to this device, and it shouldn't bloat every cloud write. */
-const LOG_KEY='shop-log-1', LOG_MAX=3000;
-let actlog=[], logT=null;
+   Never part of the synced state blob: that whole blob is rewritten on every
+   save, so a log inside it would re-upload itself on every tap. It is stored
+   compactly here, and mirrored to the cloud as an append-only node instead. */
+const LOG_KEY='shop-log-1', DEV_KEY='shop-dev-1', LOG_MAX=12000;
+let actlog=[], logT=null, devId='';
+
+/* on disk each entry is [gap-since-previous, kind, detail] — about half the
+   size of the readable form, which is what makes 12000 of them affordable */
+const packLog=a=>{let p=0;return JSON.stringify(a.map(e=>{const d=e.t-p;p=e.t;return [d,e.k,e.d];}));};
+const unpackLog=s=>{let p=0;
+  return (JSON.parse(s)||[]).map(e=>Array.isArray(e)
+    ? (p+=e[0], {t:p,k:e[1],d:e[2]||''})
+    : (p=e.t,   {t:e.t,k:e.k,d:e.d||''}));};
+
 function log(kind,detail){
-  actlog.push({t:Date.now(),k:kind,d:detail===undefined?'':String(detail)});
-  if(actlog.length>LOG_MAX) actlog=actlog.slice(-LOG_MAX);
+  const e={t:Date.now(),k:kind,d:detail===undefined?'':String(detail)};
+  actlog.push(e);
+  if(actlog.length>LOG_MAX+300) actlog=actlog.slice(-LOG_MAX);
+  cloudLog(e);
   clearTimeout(logT);                       /* a burst of taps is one write */
-  logT=setTimeout(()=>{try{ STORE.set(LOG_KEY,JSON.stringify(actlog)); }catch(e){}},250);
+  logT=setTimeout(flushLog,1500);
 }
+function flushLog(){ clearTimeout(logT); try{ STORE.set(LOG_KEY,packLog(actlog)); }catch(e){} }
+
+const secs=ms=>ms<1000?Math.round(ms)+'ms'
+  :ms<60000?(ms/1000).toFixed(1)+'s'
+  :ms<3600000?Math.round(ms/60000)+'m'
+  :(ms/3600000).toFixed(1)+'h';
+
+/* which device this log came from, so two devices' logs can be told apart */
+const devLabel=()=>{
+  const u=navigator.userAgent;
+  const os=/Android/.test(u)?'Android':/iPhone|iPad|iPod/.test(u)?'iOS'
+    :/Windows/.test(u)?'Windows':/Mac OS/.test(u)?'Mac':/Linux/.test(u)?'Linux':'other';
+  let how='browser';
+  try{ if(matchMedia('(display-mode: standalone)').matches) how='installed'; }catch(e){}
+  return devId+' · '+os+' · '+how;
+};
 
 /* Every tap, before the handler runs. The entries the handler then writes sit
    underneath it in the log, so the export reads as tap → what the app did. */
@@ -819,13 +848,87 @@ function tapLabel(el){
 const txt=(p,sel)=>{const n=p.querySelector(sel);return n?n.textContent.trim():'?';};
 const rowName=r=>{const n=r.querySelector('.label,.nm');
   return n?n.textContent.trim().replace(/\s+/g,' '):'?';};
+let lastTap=0;
+const where=()=>(tab!=='grocery'?'  ['+tab+']':'')+(focusOn()?'  [focus: '+store(focus).name+']':'');
 document.addEventListener('click',e=>{
-  const el=e.target.closest('button,.row,.store-head,.aisle-head,.opt,.chip,label');
-  if(!el||el.disabled) return;
-  log('TAP',tapLabel(el)+(tab!=='grocery'?'  ['+tab+']':'')+(focusOn()?'  [focus: '+store(focus).name+']':''));
+  const el=e.target.closest('button,.row,.store-head,.aisle-head,.opt,.chip,label,.rt,.scrim,input,textarea');
+  const gap=lastTap?'  (+'+secs(Date.now()-lastTap)+')':'';
+  lastTap=Date.now();
+  if(!el||el.disabled) return log('TAP','background'+where()+gap);
+  log('TAP',tapLabel(el)+where()+gap);
 },true);
+
+/* ---------- the rest of what there is to know ----------
+   Taps are only part of it. These are the things that happen around them:
+   when the app was open, what was on screen, what failed, what synced. */
+
+/* keys that act like taps */
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape') log('TAP','Escape key');
+  else if(e.key==='Enter'&&/INPUT|TEXTAREA/.test(e.target.tagName))
+    log('TAP','Enter in '+(e.target.id||'a text box'));
+},true);
+
+/* sessions: when it was opened, left, come back to, and for how long */
+let openedAt=Date.now(), awayAt=0;
+function logOpen(){
+  log('app','opened · '+devLabel()+' · '+innerWidth+'×'+innerHeight+
+    ' · '+(navigator.onLine?'online':'offline')+
+    ' · '+items.filter(i=>!i.done).length+' items on the list');
+}
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){ awayAt=Date.now(); log('app','left after '+secs(awayAt-openedAt));
+    flushLog(); sendLogBatch(); }
+  else { openedAt=Date.now(); log('app','back after '+secs(Date.now()-awayAt)+' away'); }
+});
+addEventListener('pagehide',()=>{ log('app','closed after '+secs(Date.now()-openedAt));
+  flushLog(); sendLogBatch(); });
+addEventListener('online',()=>log('net','back online'));
+addEventListener('offline',()=>log('net','went offline'));
+
+/* anything that breaks, instead of breaking silently */
+addEventListener('error',e=>log('ERROR',
+  (e.message||'?')+' @ '+String(e.filename||'').split('/').pop()+':'+(e.lineno||'?')));
+addEventListener('unhandledrejection',e=>log('ERROR',
+  'unhandled: '+((e.reason&&(e.reason.message||e.reason))||'?')));
+
+/* what is actually on screen, and for how long — the aisle at the top of the
+   viewport, logged when it changes rather than on every scroll event */
+let onScreen='', onScreenAt=Date.now(), scrollT=null, scrolls=0;
+addEventListener('scroll',()=>{
+  scrolls++;
+  clearTimeout(scrollT);
+  scrollT=setTimeout(()=>{
+    let cur='';
+    document.querySelectorAll('.store-head h2,.aisle-head .nm').forEach(h=>{
+      if(h.getBoundingClientRect().top<150) cur=h.textContent.trim();
+    });
+    if(!cur||cur===onScreen) return;
+    if(onScreen) log('view','past '+onScreen+' after '+secs(Date.now()-onScreenAt)+
+      ' ('+scrolls+' scrolls)');
+    log('view','at '+cur+where());
+    onScreen=cur; onScreenAt=Date.now(); scrolls=0;
+  },500);
+},{passive:true});
+
+/* typing, including the typing that gets abandoned */
+function watchTyping(id){
+  const el=$(id); if(!el) return;
+  let edits=0, began=0;
+  el.addEventListener('focus',()=>{edits=0;began=Date.now();});
+  el.addEventListener('input',()=>{edits++;});
+  el.addEventListener('blur',()=>{
+    if(!edits) return;
+    const v=el.value.trim();
+    log('typing',id+': '+edits+' edit'+(edits===1?'':'s')+' over '+secs(Date.now()-began)+
+      (v?', holding "'+v.slice(0,60)+'"':', left empty'));
+  });
+}
 async function loadLog(){
-  try{ const r=await STORE.get(LOG_KEY); if(r) actlog=JSON.parse(r)||[]; }catch(e){ actlog=[]; }
+  try{ const r=await STORE.get(LOG_KEY); if(r) actlog=unpackLog(r); }catch(e){ actlog=[]; }
+  try{ devId=(await STORE.get(DEV_KEY))||''; }catch(e){}
+  if(!devId){ devId='d'+Math.random().toString(36).slice(2,7);
+    try{ await STORE.set(DEV_KEY,devId); }catch(e){} }
 }
 function logText(){
   const pad=n=>String(n).padStart(2,'0');
@@ -836,7 +939,9 @@ function logText(){
     'Shopping app — activity log',
     'exported: '+stamp(Date.now()),
     'build: '+(document.querySelector('.buildstamp')||{textContent:'?'}).textContent,
-    'entries: '+actlog.length,
+    'entries: '+actlog.length+' of '+LOG_MAX+'   covering: '+
+      (actlog.length?stamp(actlog[0].t)+' onwards':'nothing yet'),
+    'device: '+devLabel()+'   cloud log: '+cloudLogState,
     'items on list: '+items.filter(i=>!i.done).length+'   stores: '+stores.map(s=>s.name).join(', '),
     'aisle route: '+route.join(' > '),
     'speech api: '+(SR?'yes':'no')+'   agent: '+navigator.userAgent,
@@ -863,10 +968,36 @@ const FIREBASE={
   messagingSenderId:"333207859905",
   appId:"1:333207859905:web:bf9e234cf6ce50fa3b5a40"
 };
-const CLOUD_PATH='lists/main';
+const CLOUD_PATH='lists/main', LOG_PATH='logs';
 let cloudRef=null, cloudState='off', cloudSeen=0, pushT=null;
 
+/* The log goes to its own node with push(), which appends one child without
+   rewriting its siblings. The app never reads this node back, so it costs a
+   few hundred bytes every few seconds and nothing else. */
+let logRef=null, logQ=[], logPushT=null, logSentAt=0, cloudLogState='local only';
+function sendLogBatch(){
+  clearTimeout(logPushT); logPushT=null;
+  const batch=logQ.splice(0);
+  if(!logRef||!batch.length) return;
+  logSentAt=Date.now();
+  let p=0;
+  logRef.push({dev:devId,t0:batch[0].t,rows:batch.map(x=>{const d=x.t-p;p=x.t;return [d,x.k,x.d];})})
+    .then(()=>{ cloudLogState='mirrored'; })
+    .catch(err=>{ cloudLogState='refused — the logs rule is missing in Firebase';
+      logRef=null; console.warn('cloud log failed:',err&&err.message); });
+}
+function cloudLog(e){
+  if(!logRef) return;
+  logQ.push(e);
+  /* quiet moment, or 20 seconds of steady tapping — whichever comes first,
+     so a long shop doesn't keep resetting the timer and never send */
+  if(Date.now()-logSentAt>20000) return sendLogBatch();
+  clearTimeout(logPushT);
+  logPushT=setTimeout(sendLogBatch,6000);
+}
+
 function cloudSay(s){
+  if(s!==cloudState) log('sync',s);
   cloudState=s;
   const d=$('syncdot'), t=$('syncword');
   const label={live:'Synced',saving:'Saving…',offline:'Offline — will sync later',
@@ -880,6 +1011,8 @@ function cloudStart(){
     if(typeof firebase==='undefined'){ cloudSay('off'); return; }
     firebase.initializeApp(FIREBASE);
     cloudRef=firebase.database().ref(CLOUD_PATH);
+    logRef=firebase.database().ref(LOG_PATH+'/'+(devId||'unknown'));
+    cloudLogState='mirroring…';
 
     firebase.database().ref('.info/connected').on('value',s=>{
       if(s.val()===true) cloudSay('live'); else cloudSay('offline');
@@ -957,6 +1090,8 @@ async function load(){
   document.body.classList.toggle('compact',compact);
   $('keep-url').value=keepUrl;
   await loadLog();
+  logOpen();
+  ['new-name','paste','aisle-new','keep-url','mv-new-name','mv-ais-name'].forEach(watchTyping);
   const added=applyPatches();
   cloudStart();
   draw();
@@ -1160,7 +1295,9 @@ function draw(){
     $('pickstore').addEventListener('click',openFocusPick);
     $('f-fold').addEventListener('click',foldAll);
     $('f-gear').addEventListener('click',openSettings);
-    $('unfocus').addEventListener('click',()=>{focus=null;draw();save();});
+    $('unfocus').addEventListener('click',()=>{
+      log('focus','left focus on '+s.name+' after '+secs(Date.now()-focusAt));
+      focus=null;draw();save();});
   } else fb.style.display='none';
 
   if(tab==='history'){ drawHistory(host); return drawTail(); }
@@ -1185,7 +1322,9 @@ function draw(){
       eye.setAttribute('aria-label','Show only '+s.name);
       eye.addEventListener('click',e=>{
         e.stopPropagation();
-        focus=s.id; shut['S'+s.id]=false; draw(); save();
+        focus=s.id; focusAt=Date.now(); shut['S'+s.id]=false;
+        log('focus','focused on '+s.name+', '+items.filter(i=>i.stores.includes(s.id)&&live(i)).length+' items');
+        draw(); save();
       });
       head.appendChild(eye);
     }
@@ -1305,7 +1444,8 @@ function noteTick(it){
   const now=Date.now();
   if(now-(brain.trailT||0)>TRIP_GAP){        // new trip
     brain.trail=[]; brain.trips=(brain.trips||0)+1;
-    log('trip','started trip #'+brain.trips);
+    log('trip','trip #'+brain.trips+' begins · '+items.filter(i=>!i.done&&listOf(i)==='grocery').length+
+      ' to get · '+new Date().toLocaleString(undefined,{weekday:'short',hour:'numeric',minute:'2-digit'}));
   }
   brain.trailT=now;
   const cat=route.includes(it.cat)?it.cat:'Other';
@@ -1605,6 +1745,7 @@ function drawRoute(){
       for(const k in learned){ if(learned[k][1]===c) learned[k][1]='Other'; }
       route.splice(i,1);
       for(const sid in order) order[sid]=order[sid].filter(x=>x!==c);
+      log('aisle-delete',c+(n?', '+n+' item'+(n===1?'':'s')+' moved to Other':', it was empty'));
       drawRoute(); draw(); save();
       flash(n?'“'+c+'” removed · '+n+' item'+(n===1?'':'s')+' moved to Other':'“'+c+'” removed');
     });
@@ -1613,8 +1754,9 @@ function drawRoute(){
   $('den-c').classList.toggle('cur',compact);
   $('den-r').classList.toggle('cur',!compact);
   $('logcount').textContent=actlog.length
-    ? actlog.length+' entries recorded. Export it and send me the file if something misbehaves.'
-    : 'No activity recorded yet.';
+    ? actlog.length+' of '+LOG_MAX+' entries · '+Math.round(packLog(actlog).length/1024)+
+      ' KB · this device is '+devLabel()+' · cloud copy: '+cloudLogState
+    : 'No activity recorded yet. This device is '+devLabel()+'.';
   $('brainnote').innerHTML=brainText().map(esc).join('<br>');
   $('hist-note').textContent=hist.length
     ? 'Remembers the last '+hist.length+' line'+(hist.length===1?'':'s')+' it imported. Trimming the top of the note is fine — it finds where the note picks up.'
@@ -1625,13 +1767,14 @@ $('aisle-add').addEventListener('click',()=>{
   if(!v){box.focus();return;}
   const had=route.some(c=>c.toLowerCase()===v.toLowerCase());
   newAisle(v);
+  log('aisle-add',had?v+' already existed':v+' added');
   box.value=''; drawRoute(); draw(); save();
   flash(had?'“'+v+'” is already an aisle.':'Aisle “'+v+'” added.');
 });
 $('aisle-new').addEventListener('keydown',e=>{if(e.key==='Enter')$('aisle-add').click();});
 
-$('den-c').addEventListener('click',()=>{compact=true;document.body.classList.add('compact');drawRoute();save();});
-$('den-r').addEventListener('click',()=>{compact=false;document.body.classList.remove('compact');drawRoute();save();});
+$('den-c').addEventListener('click',()=>{compact=true;document.body.classList.add('compact');log('density','compact');drawRoute();save();});
+$('den-r').addEventListener('click',()=>{compact=false;document.body.classList.remove('compact');log('density','roomy');drawRoute();save();});
 
 /* ---------- sheets ---------- */
 function show(id){closeSheets(true);$('scrim').classList.add('on');$(id).classList.add('on');}
@@ -1644,12 +1787,14 @@ function openFocusPick(){
     b.className='opt'+(s.id===focus?' cur':'');
     b.innerHTML='<span class="dot" style="background:'+s.color+'"></span>'+
       '<span style="flex:1">'+esc(s.name)+'</span><span class="mark">'+n+'</span>';
-    b.addEventListener('click',()=>{focus=s.id;closeSheets();draw();save();});
+    b.addEventListener('click',()=>{focus=s.id;focusAt=Date.now();
+      log('focus','switched focus to '+s.name);closeSheets();draw();save();});
     o.appendChild(b);
   });
   const all=document.createElement('button');
   all.className='opt'; all.innerHTML='<span style="flex:1">Show every store</span>';
-  all.addEventListener('click',()=>{focus=null;closeSheets();draw();save();});
+  all.addEventListener('click',()=>{log('focus','back to every store');
+    focus=null;closeSheets();draw();save();});
   o.appendChild(all);
   show('sheet-pick');
 }
@@ -1717,12 +1862,18 @@ function disarm(){
   armed=false; clearTimeout(armT);
   const b=$('clear-cart'); b.classList.remove('arm'); b.textContent='Empty cart';
 }
-$('tab-g').addEventListener('click',()=>{tab='grocery';disarm();draw();});
-$('tab-e').addEventListener('click',()=>{tab='errand';disarm();draw();});
-$('tab-p').addEventListener('click',()=>{tab='parked';disarm();draw();});
-$('tab-h').addEventListener('click',()=>{tab='history';disarm();draw();});
+function goTab(t){
+  const was=tab; tab=t; disarm(); draw();
+  log('tab',was+' \u2192 '+t+', showing '+items.filter(i=>live(i)).length+' item'+
+    (items.filter(i=>live(i)).length===1?'':'s'));
+}
+$('tab-g').addEventListener('click',()=>goTab('grocery'));
+$('tab-e').addEventListener('click',()=>goTab('errand'));
+$('tab-p').addEventListener('click',()=>goTab('parked'));
+$('tab-h').addEventListener('click',()=>goTab('history'));
 
 $('clear-cart').addEventListener('click',()=>{
+  log('empty-cart',items.filter(i=>i.done&&inTab(i)).length+' in the cart');
   const n=items.filter(i=>i.done&&inTab(i)).length;
   if(!n){disarm();flash('The cart is empty — this only clears items you’ve checked off.');return;}
   if(!armed){
@@ -1868,6 +2019,7 @@ function listen(){
       $('v-hint').textContent='Microphone blocked. Allow it in the padlock menu, then try again.';
       return;
     }
+    log('voice-error',ev.error);
     if(ev.error==='no-speech'||ev.error==='aborted'||ev.error==='network') return;
     $('v-hint').textContent='Voice error: '+ev.error;
   };
