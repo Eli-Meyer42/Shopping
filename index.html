@@ -305,6 +305,7 @@ body.compact .store-head{height:50px;}
 .vheard{margin:0;font-size:21px;font-weight:600;text-align:center;min-height:28px;
   color:var(--ink);line-height:1.25;}
 .vlog{flex:1;overflow-y:auto;margin-top:14px;display:flex;flex-direction:column;gap:7px;}
+.vtype{margin-top:10px;flex:none;}
 .vitem{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);
   border-radius:12px;padding:11px 13px;font-size:16px;animation:vin .18s ease-out;}
 @keyframes vin{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
@@ -364,7 +365,7 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
     </div>
     <div class="tabs">
       <button id="tab-g">Groceries <em id="n-g"></em></button>
-      <button id="tab-e">Errands <em id="n-e"></em></button>
+      <button id="tab-e">The rest <em id="n-e"></em></button>
       <button id="tab-p">Parked <em id="n-p"></em></button>
       <button id="tab-h">History <em id="n-h"></em></button>
     </div>
@@ -402,6 +403,10 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
     <p class="vheard" id="v-heard"></p>
   </div>
   <div class="vlog" id="v-log"></div>
+  <div class="add vtype">
+    <input id="v-text" placeholder="Or type it" autocomplete="off" enterkeyhint="done" aria-label="Type an item">
+    <button class="btn primary" id="v-add">Add</button>
+  </div>
   <p class="vtip">Say an item, then the next. “Remove milk” takes one off.</p>
 </div>
 
@@ -548,7 +553,7 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
        href="https://github.com/Eli-Meyer42/Shopping/deployments">Deploy history</a>
   </div>
 
-  <p class="buildstamp">Build 22 · 24 Nov 2026</p>
+  <p class="buildstamp">Build 23 · 24 Nov 2026</p>
 </div>
 
 <script>
@@ -647,20 +652,21 @@ const EQUIP=new Set(['knife','knives','board','boards','rack','racks','holder','
 /* every result is [ [storeIds…], aisle ] */
 const pair=v=>[Array.isArray(v[0])?v[0].slice():[v[0]], v[1]];
 
-function classify(name){
+function classify(name,raw){                        // raw: what the built-in rules say, before anything I was taught
   const n=norm(name), s=n.replace(/(es|s)$/,'');
-  if(learned[n]) return pair(learned[n]);
-  if(learned[s]) return pair(learned[s]);
+  if(!raw&&learned[n]) return pair(learned[n]);
+  if(!raw&&learned[s]) return pair(learned[s]);
+  const w=n.split(' ');
+  /* a lesson about a last word ("anything ending in wine goes to Publix") beats my own table */
+  if(!raw&&w.length>1&&heads[w[w.length-1]]) return pair(heads[w[w.length-1]]);
   let hit=look(n);                                  // whole phrase
   if(hit) return pair(hit);
-  const w=n.split(' ');
   if(w.length>1){
     hit=look(w[w.length-1]);                        // head noun: "orange soda" -> soda
     if(hit) return pair(hit);
   }
   /* never seen this, but I once filed something ending in the same word by
      hand: "bread knives" goes where "meat knives" was put */
-  if(w.length>1&&heads[w[w.length-1]]) return pair(heads[w[w.length-1]]);
   if(w.length>1&&EQUIP.has(w[w.length-1])) return [[P],'Other'];   // a thing, not a food
   for(const [re,st,ct] of RULES){ if(re.test(n)) return [[st],ct]; }
   let best=null,len=0;                              // longest contained known item
@@ -1496,6 +1502,7 @@ function cloudStart(){
         cloudLive=true;
         if(cloudDirty) cloudPush();
         dailyBackup();                               // now that this device and the cloud agree
+        if(!unsyncedFrom) autoCart();
       }).catch(e=>{ cloudSay('error'); log('sync','could not read the cloud: '+(e&&e.message||e)); });
     });
     cloudRef.on('value',s=>{ if(cloudLive) onCloud(s.val()); },
@@ -1859,6 +1866,10 @@ function flip(id,row,inCart,sid){
 }
 
 const listOf=i=>i.list==='errand'?'errand':i.list==='parked'?'parked':'grocery';
+/* The second list is everything that isn't groceries. Inside the app it is still
+   called 'errand' (that is what is saved); this is the only place its name lives. */
+const ELSE='The rest';
+const listName=l=>l==='errand'?ELSE:l==='parked'?'Parked':'Groceries';
 const inTab=i=>listOf(i)===tab;
 /* focused on one store: everything else gets out of the way */
 const focusOn=()=>(tab==='grocery'&&focus&&stores.some(s=>s.id===focus))?focus:null;
@@ -1998,7 +2009,7 @@ function draw(){
 function drawErrands(host){
   const mine=items.filter(i=>live(i));
   if(!mine.length){
-    host.innerHTML='<p class="hint" style="margin-top:22px">Nothing here. This is for one-offs and things that aren’t part of a grocery run.</p>';
+    host.innerHTML='<p class="hint" style="margin-top:22px">Nothing here. This is for anything that isn’t groceries.</p>';
     return;
   }
   const box=document.createElement('div'); box.className='flat';
@@ -2096,7 +2107,34 @@ const beat=(sid,a,b)=>((brain.pairs[sid]||{})[a+'>'+b])||0;
 /* The one aisle swap the evidence most clearly supports, or nothing.
    One swap at a time: small, obvious, and easy to undo. */
 const MIN_EV=3;                 // needs to have happened at least three times
+/* Two things ending in the same word, both put by hand at a store I wouldn't
+   have chosen: that is probably true of the word, not just of those two. */
+function storeHunch(){
+  const groups={};
+  for(const k in learned){ const w=k.split(' '), last=w[w.length-1]; if(last.length>2&&!storeFirst(k)) (groups[last]=groups[last]||[]).push(k); }
+  for(const last in groups){
+    const ks=groups[last]; if(ks.length<2) continue;
+    let inter=(learned[ks[0]][0]||[]).slice();
+    ks.forEach(k=>{ inter=inter.filter(id=>(learned[k][0]||[]).indexOf(id)>=0); });
+    inter=inter.filter(id=>stores.some(x=>x.id===id));
+    if(!inter.length) continue;
+    const base=classify(last,true)[0], same=(x,y)=>x.length===y.length&&x.every(v=>y.indexOf(v)>=0);
+    if(same(inter,base)) continue;                         // it's where I'd have put it anyway
+    if(heads[last]&&same(heads[last][0]||[],inter)) continue;   // already a lesson
+    const id='sto|'+last+'|'+inter.slice().sort().join(',');
+    const turned=brain.no[id];
+    if(turned&&ks.length<turned.ev+2) continue;
+    const names=inter.map(i=>store(i).name).join(' and ');
+    const eg=ks.slice(0,3).map(k=>'<b>'+esc(cap(k))+'</b>');
+    return {id,kind:'store',word:last,stores:inter,cat:learned[ks[0]][1],ev:ks.length,
+      text:'You put '+eg.slice(0,-1).join(', ')+' and '+eg[eg.length-1]+' at <b>'+esc(names)+'</b>. '+
+           'File anything ending in “'+esc(last)+'” there from now on?',
+      why:'I’d been sending “'+last+'” to '+base.map(i=>store(i).name).join(' and ')};
+  }
+  return null;
+}
 function hunch(){
+  const sh=storeHunch(); if(sh) return sh;
   for(const s of stores){
     const o=aisleOrder(s.id).filter(c=>items.some(i=>i.stores.includes(s.id)&&!i.done&&i.cat===c)
       || (brain.pairs[s.id]&&Object.keys(brain.pairs[s.id]).some(k=>k.split('>').includes(c))));
@@ -2117,6 +2155,19 @@ function hunch(){
 }
 
 function applyHunch(h){
+  if(h.kind==='store'){
+    const names=h.stores.map(i=>store(i).name).join(' and ');
+    heads[h.word]=[h.stores.slice(),h.cat,'grocery'];
+    learned[h.word]=[h.stores.slice(),h.cat,'grocery'];
+    let n=0;                                               // and the ones already on the list that I filed by my old rule
+    items.forEach(i=>{ const k=norm(i.name), w=k.split(' ');
+      if(i.done||w[w.length-1]!==h.word||(learned[k]&&k!==h.word)) return;
+      i.stores=h.stores.slice(); n++; });
+    delete brain.no[h.id];
+    log('learned','anything ending in “'+h.word+'” now goes to '+names+' (you said yes)'+(n?' · moved '+n+' on the list':''));
+    hunchOn=null; draw(); save();
+    flash('“'+cap(h.word)+'” now goes to '+names+'.'); return;
+  }
   const o=aisleOrder(h.sid);
   o.splice(o.indexOf(h.cat),1);
   o.splice(o.indexOf(h.above),0,h.cat);
@@ -2128,7 +2179,7 @@ function applyHunch(h){
 }
 function refuseHunch(h){
   brain.no[h.id]={t:Date.now(),ev:h.ev};
-  log('learned',"didn't take the suggestion: "+h.cat+' above '+h.above+' at '+store(h.sid).name);
+  log('learned',"didn't take the suggestion: "+(h.kind==='store'?'“'+h.word+'” to '+h.stores.map(i=>store(i).name).join('+'):h.cat+' above '+h.above+' at '+store(h.sid).name));
   hunchOn=null; draw(); save();
   flash('Left as it is. It won’t ask again until it sees a good deal more.');
 }
@@ -2139,7 +2190,7 @@ function drawHunch(){
   const q=nextReview();
   if(q){ drawReview(box,q); return; }
   if(tab!=='grocery'){ box.innerHTML=''; return; }
-  if(hunchOn){                               // already handled some other way?
+  if(hunchOn&&hunchOn.kind==='order'){        // already handled some other way?
     const o=aisleOrder(hunchOn.sid);
     if(o.indexOf(hunchOn.cat)<o.indexOf(hunchOn.above)) hunchOn=null;
   }
@@ -2159,12 +2210,18 @@ function drawReview(box,q){
     why='Heard, but not added'; text='“'+esc(q.label)+'”<span class="ev">It sounded like talking rather than shopping.</span>';
     a=['Add it',()=>reviewAdd(q)]; b=['Leave it off',()=>reviewDismiss(q)];
   } else if(q.kind==='doubt'){
-    /* the usual trouble with a word I don't know isn't that it's wrong, it's
-       that it's in the wrong place: unknown real things are mostly errands */
-    const it=items.find(i=>i.id===q.id), other=it&&listOf(it)==='errand'?'grocery':'errand';
-    why='Added, but not sure'; text='“'+esc(q.name)+'”<span class="ev">On the '+(other==='errand'?'grocery list':'errands list')+', though '+esc(q.why)+'.</span>';
-    a=['Keep it',()=>reviewKeep(q)]; b=['Take it off',()=>reviewRemove(q)];
-    c=[other==='errand'?'It’s an errand':'It’s a grocery',()=>reviewRefile(q,other)];
+    /* An unknown word is rarely wrong, just possibly in the wrong place — so
+       the card asks the one real question, where does it go, and each button
+       is a place. */
+    const it=items.find(i=>i.id===q.id), here=it&&listOf(it)==='errand'?'errand':'grocery', other=here==='errand'?'grocery':'errand';
+    why='Added, but not sure'; text='“'+esc(q.name)+'” — where does it go?<span class="ev">It’s on '+listName(here)+' for now, though '+esc(q.why)+'.</span>';
+    a=[listName(here)+' ✓',()=>reviewKeep(q)]; b=['Take it off',()=>reviewRemove(q)];
+    c=[listName(other),()=>reviewRefile(q,other)];
+  } else if(q.kind==='near'){
+    why='Very similar'; text='“'+esc(q.name)+'” is a lot like “'+esc(q.oname)+'”, which was already on the list.<span class="ev">Both are on it for now.</span>';
+    a=['Keep both',()=>reviewNear(q,'both')];
+    c=['Just '+esc(q.name),()=>reviewNear(q,'new')];
+    b=['Just '+esc(q.oname),()=>reviewNear(q,'old')];
   } else if(q.kind==='swap'){
     why='Swapped'; text='“'+esc(q.old.name)+'” became “'+esc(q.name)+'”<span class="ev">You said it again straight after, so the first one was taken off.</span>';
     a=['That’s right',()=>{ dropReview(q); log('review','swap confirmed: '+q.old.name+' → '+q.name); draw(); save(); }];
@@ -2203,8 +2260,8 @@ const cap=t=>String(t).replace(/^\w/,c=>c.toUpperCase());
 function reviewRefile(q,to){
   const it=items.find(i=>i.id===q.id);
   if(it){ it.list=to; remember(it); }
-  dropReview(q); log('review','“'+q.name+'” is '+(to==='errand'?'an errand':'a grocery')+', not '+(to==='errand'?'a grocery':'an errand'));
-  draw(); save(); flash(q.name+' moved to '+(to==='errand'?'Errands':'Groceries')+'.');
+  dropReview(q); log('review','“'+q.name+'” belongs on '+listName(to));
+  draw(); save(); flash(q.name+' moved to '+listName(to)+'.');
 }
 function reviewKeepBoth(q){
   const o=q.old; o.id=newId(); o.done=false; o.fresh=false;
@@ -2234,7 +2291,39 @@ function contentFixes(){
   let ran=false;
   if(!patches.sweep1){ patches.sweep1=1; sweepSpeech(); ran=true; }
   if(!patches.fix22){ patches.fix22=1; fixUps22(); ran=true; }
+  if(!patches.fix23){ patches.fix23=1; fixUps23(); ran=true; }
   return ran;
+}
+function fixUps23(){
+  /* The shop of Fri 20 Nov happened before the app was watching trips, but
+     every tick of it is in the activity log. This is that trip, counted as one:
+     the order the aisles were first reached at Publix. One trip is evidence,
+     not a conclusion — nothing is suggested until three agree. */
+  const seq=['Produce','Dairy & Eggs','Snacks','Bakery','Drinks','Dry Goods'];
+  const p=brain.pairs[P]=brain.pairs[P]||{};
+  if(stores.some(x=>x.id===P)&&!Object.keys(p).length){
+    seq.forEach((b,j)=>{ for(let i=0;i<j;i++) p[seq[i]+'>'+b]=1; });
+    brain.trips=(brain.trips||0)+1;
+    log('learned','counted the shop of Fri 20 Nov from the activity log: '+seq.join(' → '));
+  }
+}
+/* What is in the cart was bought; once the trip is well over it has no reason
+   to sit there. Each thing is in History, and that is the record. Only done
+   once this device has caught up with the cloud, so a phone that has been off
+   for a week can't clear something another device has since put back. */
+const CART_STALE=6*3600*1000;
+function autoCart(){
+  const done=items.filter(i=>i.done);
+  if(!done.length) return false;
+  const now=Date.now();
+  if(done.some(i=>now-(i.u||0)<CART_STALE)) return false;
+  let kept=0;
+  done.forEach(i=>{ const k=norm(i.name); if(!bought[k]&&knownThing(i.name)&&!looksSpoken(i.name,false)){ bought[k]=[i.u||now]; kept++; } });
+  items=items.filter(i=>!i.done);
+  log('auto-cart','emptied the cart: '+done.length+' bought more than six hours ago ('+done.map(i=>i.name).join(', ').slice(0,300)+')');
+  draw(); save();
+  setTimeout(()=>flash('Emptied the cart from your last shop: '+done.length+' item'+(done.length===1?'':'s')+'. They’re in History.'),900);
+  return true;
 }
 /* One-off repairs for things earlier builds got wrong and later fixes didn't
    reach back to: every change is narrow, named in the history, and said aloud. */
@@ -2339,7 +2428,7 @@ function drawParked(host){
     r.innerHTML='<button class="tick"><span class="label">'+esc(it.name)+'</span></button>';
     r.querySelector('.tick').addEventListener('click',()=>{
       it.list=it.home||'grocery'; it.snoozed=false; it.snoozes=0; delete it.home;
-      remember(it); draw(); save(); flash('“'+it.name+'” is back on your '+(it.list==='errand'?'errands':'grocery')+' list.');
+      remember(it); draw(); save(); flash('“'+it.name+'” is back on '+listName(it.list)+'.');
     });
     const m=document.createElement('button');
     m.className='move'; m.innerHTML=MOVE; m.setAttribute('aria-label','Edit '+it.name);
@@ -2388,7 +2477,7 @@ function openMove(id){
   nb.addEventListener('click',()=>{$('mv-new').style.display='flex';$('mv-new-name').focus();});
   so.appendChild(nb);
   const lo=$('mv-list'); lo.innerHTML='';
-  [['grocery','Groceries'],['errand','Errands'],['parked','Parked']].forEach(([v,label])=>{
+  [['grocery','Groceries'],['errand',ELSE],['parked','Parked']].forEach(([v,label])=>{
     const b=document.createElement('button');
     b.className='opt'+(listOf(it)===v?' cur':'');
     b.innerHTML='<span style="flex:1">'+label+'</span><span class="mark">'+(listOf(it)===v?'✓':'')+'</span>';
@@ -2605,12 +2694,12 @@ $('add-btn').addEventListener('click',()=>{
     dupe.snoozed=false;
     if(RANK[tab]<RANK[was]){ if(tab!=='parked') delete dupe.home; dupe.list=tab; }
     dupe.fresh=true; draw(); save();
-    flash('“'+dupe.name+'” was already on your '+
-      (was==='parked'?'parked list':was==='errand'?'errands':'grocery list')+
+    flash('“'+dupe.name+'” was already on '+listName(was)+
       (listOf(dupe)!==was?' — moved it here.':'.'));
     return;
   }
   addItem(v,false,tab); log('typed-add',v+' -> '+store(items[items.length-1].stores[0]).name+' / '+items[items.length-1].cat);
+  nearCheck(items[items.length-1]);
   box.value=''; draw(); save();
 });
 $('new-name').addEventListener('keydown',e=>{if(e.key==='Enter')$('add-btn').click();});
@@ -2748,11 +2837,26 @@ let rec=null, voiceOn=false, restartT=null, quietT=null, spoke=0;
 const QUIET_MS=7000;
 const STOP_WORDS=/^(done|that'?s it|that is it|that'?s all|that is all|finished|finish|stop|end|i'?m done|im done|all done|no more|nothing else|that'?ll do)\.?$/i;
 
+/* Typing in the mic panel is the same as saying it: the words go through
+   exactly what speech goes through — "remove milk", a store said first,
+   "note …", "I meant …" all work. The panel stays open while typing. */
+function typedInVoice(){
+  const box=$('v-text'), v=box.value.trim();
+  if(!v){ box.focus(); return; }
+  box.value='';
+  heard(v,true);
+  if(voiceOn) quiet();
+}
+$('v-add').addEventListener('click',typedInVoice);
+$('v-text').addEventListener('keydown',e=>{ if(e.key==='Enter') typedInVoice(); });
+$('v-text').addEventListener('input',()=>{ if(voiceOn){ clearTimeout(quietT); } });
+$('v-text').addEventListener('focus',()=>{ if(voiceOn){ clearTimeout(quietT); } });
+$('v-text').addEventListener('blur',()=>{ if(voiceOn) quiet(); });
 function voiceOpen(){
   if(!SR){ $('new-name').focus(); flash('This browser has no voice input — type it instead.'); log('voice-unavailable','no SpeechRecognition'); return; }
   voiceOn=true; spoke=0;
   $('v-log').innerHTML='';
-  $('v-heard').textContent='';
+  $('v-heard').textContent=''; $('v-text').value='';
   $('v-hint').textContent='Listening… say “done” when finished';
   $('voice').classList.add('on');
   $('v-pulse').className='vpulse live';
@@ -2783,6 +2887,7 @@ function quiet(){
   quietT=setTimeout(()=>{
     if(!voiceOn) return;
     if(noteBuf!==null){ endNote('silence'); quiet(); return; }   // close the note, keep listening
+    if(document.activeElement===$('v-text')) return;             // typing, not gone quiet
     flash('Stopped listening — it went quiet.'); voiceClose('silence');
   },noteBuf!==null?NOTE_QUIET_MS:QUIET_MS);
 }
@@ -3006,9 +3111,9 @@ function undoLast(){
   return n;
 }
 
-function heard(text){
+function heard(text,typed){
   spoke++;
-  log('heard',JSON.stringify(text));
+  log(typed?'typed-voice':'heard',JSON.stringify(text));
 
   /* Dictating a note: everything said is the note until "end note", a stop
      word, or a long silence. Nothing said in here can become a shopping item. */
@@ -3162,8 +3267,9 @@ function addSpoken(base,fresh,sid,sure){
   const unsure=!sure&&!sid&&!knownThing(it.name);
   log('voice-add',it.name+' -> '+store(it.stores[0]).name+' / '+it.cat+' / '+listOf(it)+(sid?' (store named)':'')+(unsure?' (unsure)':''));
   fresh.bases.push(it.name); fresh.ids.push(it.id);
+  const twin=nearCheck(it);
   if(!unsure){
-    vlog(esc(it.name)+'<span class="where">'+esc(store(it.stores[0]).name)+' · '+esc(it.cat)+'</span>');
+    vlog(esc(it.name)+'<span class="where">'+esc(twin?'a lot like '+twin.name+' — I’ll ask':store(it.stores[0]).name+' · '+it.cat)+'</span>');
     return it;
   }
   /* added, but I don't know the word: easy to take straight back off, here or
@@ -3198,6 +3304,30 @@ function holdSpoken(label){
    it is. They wait here — one card at a time above the list — instead of
    vanishing when the mic panel closes. */
 const HELD_MAX=12, HELD_TTL=7*86400000;
+/* "Smoked salmon" when "Salmon" is already there: maybe a second thing, maybe
+   the same thing said better. Both stay until I'm told — and a pair I'm told
+   to keep is never asked about again. */
+const pairKey=(a,b)=>[key(a),key(b)].sort().join('|');
+function nearCheck(it){
+  if(!it||it.done) return null;
+  const o=items.find(i=>i.id!==it.id&&!i.done&&variantOf(i.name,it.name)&&!(brain.both||{})[pairKey(i.name,it.name)]);
+  if(!o) return null;
+  queueReview({t:Date.now()+2,kind:'near',id:it.id,name:it.name,oid:o.id,oname:o.name});
+  log('near','“'+it.name+'” is very like “'+o.name+'”, already on the list: asked');
+  return o;
+}
+function reviewNear(q,keep){
+  dropReview(q);
+  if(keep==='both'){ (brain.both=brain.both||{})[pairKey(q.name,q.oname)]=1; log('review','kept both “'+q.name+'” and “'+q.oname+'”'); }
+  else {
+    const drop=keep==='new'?q.oid:q.id, kept=keep==='new'?q.name:q.oname, lost=keep==='new'?q.oname:q.name;
+    items=items.filter(i=>i.id!==drop);
+    held=held.filter(h=>!(h.kind==='doubt'&&h.id===drop));
+    log('review','kept “'+kept+'”, took “'+lost+'” off (not bought)');
+    flash('Kept '+kept+'.');
+  }
+  draw(); save();
+}
 function queueReview(e){
   held=held.filter(h=>!(h.kind===e.kind&&(e.kind==='held'?norm(h.label)===norm(e.label):h.id===e.id)));
   held.push(e);
@@ -3209,6 +3339,7 @@ function nextReview(){
   held=held.filter(h=>h&&h.kind!=='held'&&now-h.t<HELD_TTL&&
     (h.kind!=='doubt'||there(h.id))&&
     (h.kind!=='swap'||there(h.id))&&
+    (h.kind!=='near'||(there(h.id)&&there(h.oid)))&&
     (!h.ids||h.ids.some(there)));
   return held[0]||null;
 }
@@ -3224,7 +3355,7 @@ function reviewDismiss(q){ dropReview(q); log('review','left “'+q.label+'” o
 function reviewKeep(q){
   const it=items.find(i=>i.id===q.id);
   if(it) learned[norm(it.name)]=[it.stores.slice(),it.cat,listOf(it)==='parked'?(it.home||'grocery'):listOf(it)];
-  dropReview(q); log('review','kept “'+q.name+'”'); draw(); save();
+  dropReview(q); log('review','kept “'+q.name+'”'+(it?' on '+listName(listOf(it)):'')); draw(); save();
 }
 function reviewRemove(q){
   items=items.filter(i=>i.id!==q.id);
