@@ -457,6 +457,23 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
     <button class="btn" id="forget-brain">Forget what it learned</button>
   </div>
 
+  <div class="lab">Send the log to Claude</div>
+  <p style="margin-bottom:9px" id="ghstate">Not set up.</p>
+  <div class="inline" style="margin-bottom:7px">
+    <input id="gh-repo" placeholder="owner/repo" autocomplete="off" spellcheck="false">
+  </div>
+  <div class="inline">
+    <input id="gh-tok" type="password" placeholder="GitHub token" autocomplete="off" spellcheck="false">
+    <button class="btn primary" id="gh-save">Save</button>
+  </div>
+  <div class="stack" style="margin-top:7px">
+    <button class="btn" id="gh-send">Send log now</button>
+    <button class="btn" id="gh-auto">Auto-send: off</button>
+  </div>
+  <p class="hint" style="margin-top:9px">Each send writes a new file to that private repo, with only
+    what's happened since the last one. The token stays on this device — it is never written into the
+    app's code and never goes into the synced database.</p>
+
   <div class="lab">Activity log</div>
   <p style="margin-bottom:9px" id="logcount">No activity recorded yet.</p>
   <p class="hint" style="margin-bottom:9px">Every tap, and what the app did about it. This is
@@ -486,7 +503,7 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
        href="https://github.com/Eli-Meyer42/Shopping/deployments">Deploy history</a>
   </div>
 
-  <p class="buildstamp">Build 18 · 22 Nov 2026</p>
+  <p class="buildstamp">Build 19 · 24 Nov 2026</p>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/12.11.0/firebase-app-compat.js"></script>
@@ -878,7 +895,8 @@ function logOpen(){
 }
 document.addEventListener('visibilitychange',()=>{
   if(document.hidden){ awayAt=Date.now(); log('app','left after '+secs(awayAt-openedAt));
-    flushLog(); sendLogBatch(); }
+    flushLog(); sendLogBatch();
+    if(ghAuto&&ghTok&&unsent().length) sendLog(false,true); }
   else { openedAt=Date.now(); log('app','back after '+secs(Date.now()-awayAt)+' away'); }
 });
 addEventListener('pagehide',()=>{ log('app','closed after '+secs(Date.now()-openedAt));
@@ -930,6 +948,73 @@ async function loadLog(){
   if(!devId){ devId='d'+Math.random().toString(36).slice(2,7);
     try{ await STORE.set(DEV_KEY,devId); }catch(e){} }
 }
+/* ---------- handing the log to Claude ----------
+   One file per send, holding only what is new, committed to a private repo.
+   The token lives in its own storage key: never in this file, which is public,
+   and never in the synced blob, which anyone with the database URL can read. */
+const GH_KEY='shop-gh-1', GH_REPO_KEY='shop-ghrepo-1', GH_SENT_KEY='shop-ghsent-1',
+      GH_AUTO_KEY='shop-ghauto-1';
+let ghTok='', ghRepo='Eli-Meyer42/shopping-logs', ghSent=0, ghAuto=false, ghState='Not set up.';
+
+async function loadGh(){
+  try{ ghTok=(await STORE.get(GH_KEY))||''; }catch(e){}
+  try{ ghRepo=(await STORE.get(GH_REPO_KEY))||ghRepo; }catch(e){}
+  try{ ghSent=+((await STORE.get(GH_SENT_KEY))||0)||0; }catch(e){}
+  try{ ghAuto=(await STORE.get(GH_AUTO_KEY))==='1'; }catch(e){}
+  ghState=ghTok?'Ready. '+unsent().length+' entries waiting to send.':'Not set up.';
+}
+const b64=s=>{let o=''; new TextEncoder().encode(s).forEach(c=>o+=String.fromCharCode(c)); return btoa(o);};
+const unsent=()=>actlog.filter(e=>e.t>ghSent);
+function ghPaint(){ if($('ghstate')) $('ghstate').textContent=ghState;
+  if($('gh-auto')) $('gh-auto').textContent='Auto-send: '+(ghAuto?'on':'off'); }
+
+async function sendLog(manual,keepalive){
+  if(!ghTok){ if(manual) flash('Paste a GitHub token in settings first.'); return; }
+  const batch=unsent();
+  if(!batch.length){ ghState='Nothing new since the last send.'; ghPaint();
+    if(manual) flash('Nothing new since the last send.'); return; }
+  const d=new Date(), pad=n=>String(n).padStart(2,'0');
+  const path='logs/'+(devId||'unknown')+'/'+d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+
+    pad(d.getDate())+'-'+pad(d.getHours())+pad(d.getMinutes())+pad(d.getSeconds())+'.json';
+  const body={
+    build:(document.querySelector('.buildstamp')||{textContent:'?'}).textContent,
+    device:devLabel(), agent:navigator.userAgent, sentAt:d.toISOString(),
+    covers:[new Date(batch[0].t).toISOString(),new Date(batch[batch.length-1].t).toISOString()],
+    onList:items.filter(i=>!i.done).length, inCart:items.filter(i=>i.done).length,
+    stores:stores.map(s=>s.name), route:route, aisleOrder:order, brain:brain,
+    taught:Object.keys(learned).length, boughtKinds:Object.keys(bought).length,
+    entries:batch.map(e=>[e.t,e.k,e.d])
+  };
+  ghState='Sending '+batch.length+'…'; ghPaint();
+  try{
+    const r=await fetch('https://api.github.com/repos/'+ghRepo+'/contents/'+path,{
+      method:'PUT', keepalive:!!keepalive,
+      headers:{Authorization:'Bearer '+ghTok,Accept:'application/vnd.github+json'},
+      body:JSON.stringify({message:'log: '+batch.length+' entries from '+devId,
+        content:b64(JSON.stringify(body,null,1))})
+    });
+    if(r.ok){
+      ghSent=batch[batch.length-1].t;
+      try{ await STORE.set(GH_SENT_KEY,String(ghSent)); }catch(e){}
+      ghState='Sent '+batch.length+' entries at '+d.toLocaleTimeString()+'.';
+      log('send',batch.length+' entries → '+path);
+      if(manual) flash('Sent '+batch.length+' entries. Claude can read it now.');
+    } else {
+      const t=await r.text().catch(()=>'');
+      ghState='Failed: '+r.status+(r.status===404?' — repo name wrong, or the token has no access to it'
+        :r.status===401?' — token rejected':r.status===403?' — token lacks Contents write'
+        :r.status===422?' — that file already exists':'')+'.';
+      log('send-fail',r.status+' '+t.slice(0,140));
+      if(manual) flash(ghState);
+    }
+  }catch(e){
+    ghState='Failed: '+(e.message||'no connection')+'.';
+    log('send-fail',String((e&&e.message)||e));
+    if(manual) flash('Send failed — no connection?');
+  }
+  ghPaint();
+}
+
 function logText(){
   const pad=n=>String(n).padStart(2,'0');
   const stamp=t=>{const d=new Date(t);
@@ -1090,6 +1175,7 @@ async function load(){
   document.body.classList.toggle('compact',compact);
   $('keep-url').value=keepUrl;
   await loadLog();
+  await loadGh();
   logOpen();
   ['new-name','paste','aisle-new','keep-url','mv-new-name','mv-ais-name'].forEach(watchTyping);
   const added=applyPatches();
@@ -1758,6 +1844,9 @@ function drawRoute(){
       ' KB · this device is '+devLabel()+' · cloud copy: '+cloudLogState
     : 'No activity recorded yet. This device is '+devLabel()+'.';
   $('brainnote').innerHTML=brainText().map(esc).join('<br>');
+  $('gh-repo').value=ghRepo;
+  if(ghTok&&/^(Ready|Not set up)/.test(ghState)) ghState='Ready. '+unsent().length+' entries waiting to send.';
+  ghPaint();
   $('hist-note').textContent=hist.length
     ? 'Remembers the last '+hist.length+' line'+(hist.length===1?'':'s')+' it imported. Trimming the top of the note is fine — it finds where the note picks up.'
     : 'Nothing imported yet.';
@@ -1907,6 +1996,22 @@ $('wipe').addEventListener('click',()=>{
   flash('Cleared all '+n+' items. Note memory kept — re-paste the note and nothing comes back unless it’s new.');
 });
 
+$('gh-save').addEventListener('click',async()=>{
+  const t=$('gh-tok').value.trim(), r=$('gh-repo').value.trim();
+  if(r) { ghRepo=r; try{ await STORE.set(GH_REPO_KEY,ghRepo); }catch(e){} }
+  if(t){ ghTok=t; try{ await STORE.set(GH_KEY,ghTok); }catch(e){}
+    $('gh-tok').value=''; ghState='Token saved. Try “Send log now”.'; }
+  else ghState=ghTok?'Repo saved. Token already set.':'Paste a token too.';
+  log('send-setup','repo '+ghRepo+(t?', token set':', token unchanged'));
+  ghPaint(); flash('Saved.');
+});
+$('gh-send').addEventListener('click',()=>sendLog(true,false));
+$('gh-auto').addEventListener('click',async()=>{
+  ghAuto=!ghAuto;
+  try{ await STORE.set(GH_AUTO_KEY,ghAuto?'1':'0'); }catch(e){}
+  log('send-setup','auto-send '+(ghAuto?'on':'off'));
+  ghPaint(); flash(ghAuto?'It will send when you leave the app.':'Auto-send off.');
+});
 $('reset-snap').addEventListener('click',()=>{hist=[];save();drawRoute();flash('Note history forgotten.');});
 $('forget-brain').addEventListener('click',()=>{
   brain={pairs:{},no:{},trail:[],trailT:0,trips:0}; hunchOn=null;
