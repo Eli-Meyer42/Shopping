@@ -59,17 +59,18 @@
   .focusbar button{border:none;background:rgba(255,255,255,.16);color:#fff;font:inherit;font-size:14px;
     font-weight:600;padding:7px 12px;border-radius:9px;cursor:pointer;}
   /* a hunch the app has about you — never applied until you say so */
-  .hunch{margin-top:14px;background:var(--surface);border:1px solid var(--accent);
-    border-radius:16px;padding:13px 14px;}
-  .hunch .why{font-size:12px;letter-spacing:.04em;text-transform:uppercase;
-    color:var(--accent);font-weight:700;margin-bottom:5px;}
-  .hunch p{font-size:14.5px;line-height:1.4;margin-bottom:11px;}
-  .hunch .ev{display:block;font-size:12.5px;color:var(--dim);margin-top:4px;}
-  .hunch .ans{display:flex;gap:9px;}
-  .hunch .ans button{flex:1;font:inherit;font-size:14.5px;font-weight:600;padding:9px 0;
-    border-radius:10px;cursor:pointer;border:1px solid var(--line);
+  .hunch{position:relative;overflow:hidden;margin-top:14px;background:var(--surface);border:1px solid var(--line);
+    border-radius:20px;padding:14px 14px 14px 18px;--store:var(--accent);}
+  .hunch .why{font-size:13.5px;color:var(--accent);font-weight:600;margin-bottom:4px;}
+  .hunch p{margin:0 0 12px;font-size:16px;line-height:1.35;overflow-wrap:anywhere;}
+  .hunch .ev{display:block;font-size:13.5px;color:var(--soft);margin-top:5px;}
+  .hunch .ans{display:flex;gap:8px;}
+  .hunch .ans button{flex:1;font:inherit;font-size:15px;font-weight:600;min-height:44px;padding:8px 6px;
+    border-radius:12px;cursor:pointer;border:1px solid var(--line);
     background:var(--surface);color:var(--ink);}
   .hunch .ans button.yes{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .hunch .more{border:none;background:none;padding:0;font:inherit;color:var(--accent);font-weight:600;
+    text-decoration:underline;text-underline-offset:3px;cursor:pointer;}
   .flat{margin-top:14px;background:var(--surface);border-radius:16px;border:1px solid var(--line);overflow:hidden;}
   .store{margin-top:14px;background:var(--surface);border-radius:16px;overflow:hidden;
     border:1px solid var(--line);}
@@ -154,7 +155,7 @@
   .stack .btn{width:100%;text-align:center;}
   .inline{display:flex;gap:7px;}
   .inline input{flex:1;min-width:0;}
-  .lab{font-size:11.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--faint);margin:16px 0 7px;}
+  .lab{font-size:14px;font-weight:600;color:var(--soft);margin:20px 0 8px;}
   .say{margin-top:12px;padding:11px 13px;background:var(--bg);border-radius:12px;font-size:14px;color:var(--soft);}
   .alert{margin-top:12px;padding:12px 13px;background:#FBF0EA;border:1px solid #EBD3C5;border-radius:12px;font-size:14.5px;color:#7A3A1C;}
   .seg{display:flex;gap:7px;}
@@ -184,62 +185,87 @@ h1,h2{font-family:'Outfit',sans-serif;font-weight:600;letter-spacing:-.02em;}
 .bar button.go{background:var(--accent);border-color:var(--accent);}
 .tabs{border-radius:999px;background:#E3E7E6;}
 .tabs button{border-radius:999px;}
-.store{border-radius:20px;}
-.store-head{height:50px;}
-.body{display:grid;grid-template-columns:repeat(auto-fill,minmax(156px,1fr));gap:7px;padding:9px;}
-.aisle-head{grid-column:1/-1;background:none;border-top:none;height:26px;padding:0 3px;margin-top:2px;}
-.aisle-head span.nm{font-size:10.5px;}
-/* one line per item: box, name, then the two quiet actions */
-.row{height:auto;min-height:0;border:1px solid var(--line);border-top:1px solid var(--line);
-  border-radius:12px;padding:0 2px 0 9px;align-items:center;background:var(--tile);flex-wrap:nowrap;}
-.row:first-of-type{border-top:1px solid var(--line);}
-.tick{flex:1 1 auto;min-width:0;align-items:center;gap:9px;padding:9px 0;height:auto;}
-.label{white-space:normal;overflow:visible;line-height:1.2;font-weight:500;}
-.box{width:19px;height:19px;border-radius:6px;flex:none;}
-/* row actions read as real buttons, not faint glyphs */
-.nap,.move,.rowbtn{height:29px;width:29px;margin:0 0 0 3px;opacity:1;border-radius:8px;
-  background:var(--bg);border:1px solid var(--line);color:var(--soft);
-  display:grid;place-items:center;flex:none;}
-.nap svg,.move svg,.rowbtn svg{width:16px;height:16px;}
+.store{position:relative;border-radius:20px;}
+/* ===== the list: names on a card, ruled like a sheet of paper =====
+   Items used to be boxes inside a box, and a name was never allowed to wrap —
+   so one long name widened every box in the store and pushed the buttons off
+   the side of the screen. A row is now just a line: tick, name (wrapping as
+   far as it needs), and two buttons that stay where they are. */
+:root{ --rowh:52px; --name:17px; }
+body.compact{ --rowh:46px; --name:16.5px; }
+
+/* the store's colour runs down the edge of its card, so it is still clear
+   whose list this is after the header has scrolled away */
+.store::before,.hunch::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;
+  background:var(--store,var(--line));}
+.store-head{height:54px;padding:0 10px 0 16px;gap:8px;border-bottom:none;}
+body.compact .store-head{height:50px;}
+.store-head h2{font-size:19px;}
+.store-head .nap{width:36px;height:36px;}
+
+.body{display:block;padding:0 0 10px;}
+.aisle-head{display:flex;align-items:center;gap:6px;height:auto;min-height:36px;margin:0;
+  padding:10px 10px 0 16px;background:none;border:none;}
+.aisle-head span.nm{flex:none;font-size:13.5px;letter-spacing:0;text-transform:none;font-weight:600;color:var(--soft);}
+.aisle-head .num{flex:1;font-size:12.5px;padding-left:2px;}
+.aisle-head .caret{width:14px;height:14px;margin-right:11px;}
+.aisle-head.closed span.nm{color:var(--faint);font-weight:500;}
+
+.row{position:relative;display:flex;align-items:center;gap:5px;min-width:0;height:auto;min-height:var(--rowh);
+  padding:0 10px 0 16px;border:none;border-radius:0;background:none;}
+.row:first-of-type{border-top:none;}
+.row + .row::before{content:'';position:absolute;top:0;left:50px;right:10px;height:1px;background:var(--hair);}
+.tick{flex:1 1 0;min-width:0;height:auto;align-items:center;gap:12px;padding:11px 2px 11px 0;}
+.box{width:22px;height:22px;border-radius:7px;}
+.box svg{width:13px;height:13px;}
+.label{min-width:0;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;
+  font-size:var(--name);font-weight:500;line-height:1.25;}
+/* "new" is said in a word: a coloured dot here already means "also sold at that store" */
+.row.fresh .label::after{content:'new';display:inline;width:auto;height:auto;margin-left:8px;border-radius:0;background:none;
+  font-size:12.5px;font-weight:600;color:var(--accent);vertical-align:1px;}
+/* row actions: real buttons, the same size and place on every row */
+.nap,.move,.rowbtn{flex:none;width:36px;height:36px;margin:0;opacity:1;border:none;border-radius:11px;
+  background:var(--bg);color:var(--soft);display:grid;place-items:center;}
+.nap svg,.move svg,.rowbtn svg{width:17px;height:17px;}
 .nap:active,.move:active,.rowbtn:active{background:var(--line);}
 .trash{color:var(--warn);}
-.row{padding-right:5px;padding-left:8px;}
-.tick{padding-right:2px;gap:8px;}
-.label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.box{width:18px;height:18px;}
-/* one item per line: most aisles hold 1-3 things, so a second column was
-   mostly empty, and it left no room for a readable name plus real buttons */
-.body{grid-template-columns:1fr;gap:6px;}
-.flat{grid-template-columns:1fr;gap:6px;}
-.row{min-height:44px;}
-.label{font-size:16px;}
-/* aisle reorder arrows */
-.aord{height:28px;width:28px;flex:none;margin-left:4px;border-radius:8px;
-  background:var(--surface);border:1px solid var(--line);color:var(--soft);
-  display:grid;place-items:center;cursor:pointer;padding:0;}
-.aord svg{width:15px;height:15px;}
+
+/* putting a store's aisles in walking order: asked for, not always on show */
+.arrange{display:block;margin:8px 0 0 16px;padding:8px 0;border:none;background:none;font:inherit;
+  font-size:13.5px;font-weight:500;color:var(--faint);cursor:pointer;}
+.arrange:active{color:var(--ink);}
+.aord{flex:none;width:36px;height:36px;margin:0;padding:0;border:none;border-radius:11px;
+  background:var(--bg);color:var(--ink);display:grid;place-items:center;cursor:pointer;}
+.aord svg{width:17px;height:17px;}
 .aord:disabled{opacity:.3;}
 .aord:active:not(:disabled){background:var(--line);}
-.aisle-head{height:38px;}
+.aisle-head:has(.aord){min-height:48px;padding-top:6px;padding-bottom:6px;}
+
 /* history */
-.hist{display:block;padding:7px;}
-.histrow{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
-  background:var(--tile);border:1px solid var(--line);border-radius:12px;
-  padding:10px 12px;margin-bottom:6px;font:inherit;font-size:15px;color:var(--ink);cursor:pointer;}
-.histrow .hn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;}
-.histrow .hm{font-size:12.5px;color:var(--faint);white-space:nowrap;}
+.histrow{position:relative;display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+  background:none;border:none;padding:13px 14px 13px 16px;font:inherit;font-size:16px;color:var(--ink);cursor:pointer;}
+.histrow + .histrow::before{content:'';position:absolute;top:0;left:16px;right:14px;height:1px;background:var(--hair);}
+.histrow .hn{flex:1;min-width:0;overflow-wrap:anywhere;font-weight:500;}
+.histrow .hm{font-size:13px;color:var(--faint);white-space:nowrap;}
 .histrow .hp{width:22px;text-align:center;color:var(--soft);font-weight:600;}
-.histrow.due{border-color:var(--warn);}
-.histrow.due .hm{color:var(--warn);}
+.histrow.due .hm{color:var(--warn);font-weight:600;}
 /* four tabs need to fit */
 .tabs{overflow-x:auto;scrollbar-width:none;}
 .tabs::-webkit-scrollbar{display:none;}
 .tabs button{font-size:13.5px;padding:9px 10px;white-space:nowrap;}
 .pad{display:none;}
-.cart .row{border:none;background:none;border-radius:0;min-height:0;padding:7px 4px;}
-.flat{border-radius:20px;padding:9px;display:grid;grid-template-columns:repeat(auto-fill,minmax(156px,1fr));
-  gap:7px;}
-.flat .row{background:var(--tile);}
+/* errands, parked, history: the same ruled list, on one card */
+.flat{display:block;margin-top:14px;padding:4px 0;border-radius:20px;background:var(--surface);
+  border:1px solid var(--line);overflow:hidden;}
+.flat .row + .row::before{left:16px;}
+/* the cart: what's done, quieter */
+.cart-head h2{font-size:14px;letter-spacing:0;text-transform:none;color:var(--soft);font-weight:600;}
+.cart .row{min-height:44px;height:auto;padding:0 2px 0 6px;}
+.cart .row + .row::before{display:none;}
+.cart .tick{padding:8px 2px 8px 0;}
+.cart .label{font-size:15.5px;}
+.cart .box{width:20px;height:20px;}
+.cart .rowbtn,.cart .move{width:34px;height:34px;background:var(--surface);}
 
 /* snoozed: a quiet strip at the bottom, closed unless asked for */
 .snoozewrap{margin-top:10px;background:none;border:1px dashed var(--line);border-radius:14px;}
@@ -249,8 +275,8 @@ h1,h2{font-family:'Outfit',sans-serif;font-weight:600;letter-spacing:-.02em;}
 .snoozewrap.closed .caret{transform:rotate(-90deg);}
 .snoozewrap.closed .naps{display:none;}
 .naps{padding:0 12px 8px;}
-.naps .row{border:none;border-top:1px solid var(--hair);background:none;border-radius:0;padding:0 2px;}
-.naps .row:first-child{border-top:none;}
+.naps .row{padding:0 2px;min-height:44px;}
+.naps .row + .row::before{left:2px;right:2px;}
 .syncrow{display:flex;align-items:center;gap:9px;font-size:14.5px;color:var(--soft);padding:2px 2px 4px;}
 .syncdot{width:9px;height:9px;border-radius:50%;flex:none;background:var(--faint);}
 .syncdot.live{background:#3E8F63;}
@@ -424,6 +450,14 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
   <div class="opts" id="pick-opts"></div>
 </div>
 
+<div class="sheet" id="sheet-backups" role="dialog" aria-modal="true">
+  <div class="grab"></div>
+  <h3>Restore from a backup</h3>
+  <p>One copy of the list is kept for every day the app is opened, plus one from just before anything
+    that replaced or emptied it. Restoring changes the list on every device.</p>
+  <div class="opts" id="bk-opts"></div>
+</div>
+
 <div class="sheet" id="sheet-set" role="dialog" aria-modal="true">
   <div class="grab"></div>
   <h3>Settings</h3>
@@ -452,10 +486,10 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
   <div class="lab">Sync</div>
   <div class="syncrow"><span class="syncdot off" id="syncdot"></span><span id="syncword">Not connected</span></div>
 
-  <div class="lab">Backup</div>
+  <div class="lab">Backup to a file</div>
   <div class="stack">
     <button class="btn" id="exp">Export backup file</button>
-    <button class="btn" id="imp">Restore from backup</button>
+    <button class="btn" id="imp">Restore from a file</button>
     <input type="file" id="imp-file" accept=".json" style="display:none">
   </div>
 
@@ -465,7 +499,7 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
     <button class="btn" id="forget-brain">Forget what it learned</button>
   </div>
 
-  <div class="lab">Send the log to Claude</div>
+  <div class="lab">History and backups</div>
   <p style="margin-bottom:9px" id="ghstate">Not set up.</p>
   <div class="inline" style="margin-bottom:7px">
     <input id="gh-repo" placeholder="owner/repo" autocomplete="off" spellcheck="false">
@@ -475,12 +509,15 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
     <button class="btn primary" id="gh-save">Save</button>
   </div>
   <div class="stack" style="margin-top:7px">
-    <button class="btn" id="gh-send">Send log now</button>
+    <button class="btn" id="gh-send">Send history now</button>
     <button class="btn" id="gh-auto">Auto-send: off</button>
+    <button class="btn" id="bk-now">Back up the list now</button>
+    <button class="btn" id="bk-open">Restore from a backup…</button>
   </div>
-  <p class="hint" style="margin-top:9px">Each send writes a new file to that private repo, with only
-    what's happened since the last one. The token stays on this device — it is never written into the
-    app's code and never goes into the synced database.</p>
+  <p class="hint" style="margin-top:9px">Two things are kept in that private repo, where Claude can
+    read them: the activity log, sent in numbered pieces so a gap would show, and a copy of the whole
+    list for every day the app is opened. The token stays on this device — it is never written into
+    the app's code and never goes into the synced database.</p>
 
   <div class="lab">Activity log</div>
   <p style="margin-bottom:9px" id="logcount">No activity recorded yet.</p>
@@ -511,7 +548,7 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
        href="https://github.com/Eli-Meyer42/Shopping/deployments">Deploy history</a>
   </div>
 
-  <p class="buildstamp">Build 20 · 24 Nov 2026</p>
+  <p class="buildstamp">Build 21 · 24 Nov 2026</p>
 </div>
 
 <script>
@@ -618,6 +655,9 @@ function classify(name){
     hit=look(w[w.length-1]);                        // head noun: "orange soda" -> soda
     if(hit) return pair(hit);
   }
+  /* never seen this, but I once filed something ending in the same word by
+     hand: "bread knives" goes where "meat knives" was put */
+  if(w.length>1&&heads[w[w.length-1]]) return pair(heads[w[w.length-1]]);
   if(w.length>1&&EQUIP.has(w[w.length-1])) return [[P],'Other'];   // a thing, not a food
   for(const [re,st,ct] of RULES){ if(re.test(n)) return [[st],ct]; }
   let best=null,len=0;                              // longest contained known item
@@ -641,6 +681,17 @@ const TRIP_GAP=90*60*1000;      // a 90-minute gap means a new trip
 let hunchOn=null;               // the suggestion currently on screen
 let focusAt=0;                  // when focus mode was entered
 let seq=0, sseq=5, mvId=null, items=[], pendingNote=null, tab='grocery', focus=null;
+/* a few letters unique to this visit, so two devices creating items at the same
+   moment can never hand out the same id */
+const IDTAG=Math.random().toString(36).slice(2,6);
+const newId=()=>'i'+(seq++)+IDTAG;
+let gone={}, fu={};              // deletion markers and per-field change times (see the merge section)
+let shadow={}, shadowF={};       // what was last saved, to notice what has changed since
+let heads={};                    // last-word lessons: "… knives" goes where I once put a knife
+let held=[];                     // things the mic heard but didn't add, waiting for a yes or no
+let seedStash=null;              // the starter list, held back until the cloud says it's really a first run
+let tips={};                     // one-time pointers already shown on this device
+let arranging=null;              // the store whose aisles are being put in order, if any
 
 const norm=s=>String(s).toLowerCase().replace(/[^a-z0-9' ]/g,' ').replace(/\s+/g,' ').trim();
 
@@ -678,6 +729,8 @@ const ERRAND_HINTS=new RegExp('\\b('+ERRAND_WORDS.join('|')+')', 'i');
 function whichList(st,ct,name){
   const l=learned[norm(name)];
   if(l&&l[2]) return l[2];
+  const nm=norm(name), lw=nm.split(' ').pop(), hw=heads[lw];
+  if(hw&&hw[2]&&nm!==lw&&!look(nm)&&!look(lw)) return hw[2];       // the same last-word lesson decides the list
   if(st.length===1&&st[0]==='s4') return 'errand';   // online-only store
   if(ct!=='Other') return 'grocery';                 // the dictionary knows it: it's food shopping
   const lastWord=norm(name).split(' ').pop();
@@ -685,8 +738,8 @@ function whichList(st,ct,name){
 }
 function addItem(name,fresh,forceList){
   const [st,ct]=classify(name);
-  items.push({id:'i'+(seq++),name:name,stores:st,cat:ct,
-    list:forceList||whichList(st,ct,name),done:false,fresh:!!fresh});
+  items.push({id:newId(),name:name,stores:st,cat:ct,
+    list:forceList||whichList(st,ct,name),done:false,fresh:!!fresh,at:Date.now()});
 }
 /* older saves used a single store id */
 function migrate(){
@@ -793,7 +846,10 @@ const STORE=(()=>{
       let ok=false;
       mem[k]=v;
       if(window.storage&&window.storage.set){ try{await window.storage.set(k,v); ok=true;}catch(e){} }
-      if(hasLS){ try{localStorage.setItem(k,v); ok=true;}catch(e){} }
+      /* reads try localStorage first — so if a write there fails (it is the
+         smaller of the two stores), the old value must go, or the next launch
+         would load it over the newer copy sitting in IndexedDB */
+      if(hasLS){ try{localStorage.setItem(k,v); ok=true;}catch(e){ try{localStorage.removeItem(k);}catch(_){} } }
       try{ await idbSet(k,v); ok=true; }catch(e){}
       return ok;
     }
@@ -806,19 +862,28 @@ const STORE=(()=>{
    compactly here, and mirrored to the cloud as an append-only node instead. */
 const LOG_KEY='shop-log-1', DEV_KEY='shop-dev-1', LOG_MAX=12000;
 let actlog=[], logT=null, devId='';
+/* Every entry has a number that only ever goes up, for the life of this device:
+   entry number n sits at position n-logBase. Sending goes by number, so nothing
+   is sent twice or skipped, and a gap in the numbers proves something is missing. */
+let logBase=0;
 
-/* on disk each entry is [gap-since-previous, kind, detail] — about half the
-   size of the readable form, which is what makes 12000 of them affordable */
-const packLog=a=>{let p=0;return JSON.stringify(a.map(e=>{const d=e.t-p;p=e.t;return [d,e.k,e.d];}));};
-const unpackLog=s=>{let p=0;
-  return (JSON.parse(s)||[]).map(e=>Array.isArray(e)
+/* on disk: {b: number of the first entry, e: [[gap-since-previous, kind, detail], …]}
+   — about half the size of the readable form, which is what makes 12000 affordable */
+const packLog=a=>{let p=0;return JSON.stringify({b:logBase,e:a.map(e=>{const d=e.t-p;p=e.t;return [d,e.k,e.d];})});};
+function unpackLog(s){
+  const raw=JSON.parse(s)||[], list=Array.isArray(raw)?raw:(raw.e||[]);
+  logBase=Array.isArray(raw)?0:(raw.b||0);
+  let p=0;
+  return list.map(e=>Array.isArray(e)
     ? (p+=e[0], {t:p,k:e[1],d:e[2]||''})
-    : (p=e.t,   {t:e.t,k:e.k,d:e.d||''}));};
+    : (p=e.t,   {t:e.t,k:e.k,d:e.d||''}));
+}
 
 function log(kind,detail){
-  const e={t:Date.now(),k:kind,d:detail===undefined?'':String(detail)};
+  const last=actlog.length?actlog[actlog.length-1].t:0;
+  const e={t:Math.max(Date.now(),last),k:kind,d:detail===undefined?'':String(detail)};   // the record never runs backwards
   actlog.push(e);
-  if(actlog.length>LOG_MAX+300) actlog=actlog.slice(-LOG_MAX);
+  if(actlog.length>LOG_MAX+300){ const drop=actlog.length-LOG_MAX; actlog=actlog.slice(drop); logBase+=drop; }
   cloudLog(e);
   clearTimeout(logT);                       /* a burst of taps is one write */
   logT=setTimeout(flushLog,1500);
@@ -893,8 +958,7 @@ document.addEventListener('visibilitychange',()=>{
     flushLog(); sendLogBatch();
     /* not on every glance at the app: when there is a fair amount waiting, or
        it has been a while since anything was sent */
-    const waiting=unsent().length;
-    if(ghAuto&&ghTok&&waiting&&(waiting>=120||Date.now()-ghSent>20*60*1000)) sendLog(false,true);
+    if(sendDue()) sendLog(false,true);
   } else {
     const gone=Date.now()-awayAt;
     if(!awayAt||gone<BLIP) return;                 // a flicker: same visit, carry on
@@ -954,74 +1018,219 @@ async function loadLog(){
   if(!devId){ devId='d'+Math.random().toString(36).slice(2,7);
     try{ await STORE.set(DEV_KEY,devId); }catch(e){} }
 }
-/* ---------- handing the log to Claude ----------
-   One file per send, holding only what is new, committed to a private repo.
-   The token lives in its own storage key: never in this file, which is public,
-   and never in the synced blob, which anyone with the database URL can read. */
+/* ---------- history and backups, kept off the phone ----------
+   Two things go to a private GitHub repo: the activity log, in numbered pieces,
+   and a dated copy of the whole list. The token lives in its own storage key:
+   never in this file, which is public, and never in the synced copy of the list. */
 const GH_KEY='shop-gh-1', GH_REPO_KEY='shop-ghrepo-1', GH_SENT_KEY='shop-ghsent-1',
-      GH_AUTO_KEY='shop-ghauto-1';
-let ghTok='', ghRepo='Eli-Meyer42/shopping-logs', ghSent=0, ghAuto=false, ghState='Not set up.';
+      GH_AUTO_KEY='shop-ghauto-1', GH_META_KEY='shop-ghmeta-1';
+let ghTok='', ghRepo='Eli-Meyer42/shopping-logs', ghAuto=false, ghState='Not set up.';
+/* n: number of the next log entry to send · okAt/fails/err: how sending is going
+   snapDay/snapAt: the last backup · expires: when GitHub says the token runs out */
+let ghMeta={n:0,okAt:0,fails:0,err:'',snapDay:'',snapAt:0,expires:''};
+let ghBusy=false, snapBusy=false;
+const saveMeta=()=>{ try{ return STORE.set(GH_META_KEY,JSON.stringify(ghMeta)); }catch(e){} };
 
 async function loadGh(){
   try{ ghTok=(await STORE.get(GH_KEY))||''; }catch(e){}
   try{ ghRepo=(await STORE.get(GH_REPO_KEY))||ghRepo; }catch(e){}
-  try{ ghSent=+((await STORE.get(GH_SENT_KEY))||0)||0; }catch(e){}
   try{ ghAuto=(await STORE.get(GH_AUTO_KEY))==='1'; }catch(e){}
-  ghState=ghTok?'Ready. '+unsent().length+' entries waiting to send.':'Not set up.';
+  try{
+    const m=JSON.parse((await STORE.get(GH_META_KEY))||'null');
+    if(m) Object.assign(ghMeta,m);
+    else {                                   // first run with numbered entries: carry the old time marker over
+      const t=+((await STORE.get(GH_SENT_KEY))||0)||0;
+      ghMeta.n=logBase+actlog.filter(e=>e.t<=t).length; ghMeta.okAt=t;
+    }
+  }catch(e){}
+  ghSummary(); health();
 }
 const b64=s=>{let o=''; new TextEncoder().encode(s).forEach(c=>o+=String.fromCharCode(c)); return btoa(o);};
-const unsent=()=>actlog.filter(e=>e.t>ghSent);
+const unsent=()=>actlog.slice(Math.max(0,ghMeta.n-logBase));
+const pad2=n=>String(n).padStart(2,'0');
+const ymd=d=>d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate());
+const buildName=()=>(document.querySelector('.buildstamp')||{textContent:'?'}).textContent;
+const when=t=>{ if(!t) return 'never'; const d=new Date(t), today=ymd(d)===ymd(new Date());
+  return (today?'today':d.toLocaleDateString(undefined,{day:'numeric',month:'short'}))+' '+
+    d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); };
+
+function ghSummary(){
+  if(!ghTok){ ghState='Not set up. Without a token, the history and backups stay on this phone only.'; return; }
+  const w=unsent().length;
+  ghState='History: sent up to entry #'+Math.max(0,ghMeta.n-1)+', '+w+' waiting · last reached GitHub '+when(ghMeta.okAt)+
+    '. Backup of the list: '+when(ghMeta.snapAt)+'.'+
+    (ghMeta.fails?' Last '+ghMeta.fails+' attempt'+(ghMeta.fails===1?'':'s')+' failed ('+ghMeta.err+').':'');
+}
 function ghPaint(){ if($('ghstate')) $('ghstate').textContent=ghState;
   if($('gh-auto')) $('gh-auto').textContent='Auto-send: '+(ghAuto?'on':'off'); }
 
+/* one write to the repo; also notes when GitHub says the token will expire */
+function ghPut(path,obj,msg,keepalive){
+  return fetch('https://api.github.com/repos/'+ghRepo+'/contents/'+path,{
+    method:'PUT', keepalive:!!keepalive,
+    headers:{Authorization:'Bearer '+ghTok,Accept:'application/vnd.github+json'},
+    body:JSON.stringify({message:msg,content:b64(JSON.stringify(obj))})
+  }).then(r=>{ try{ const x=r.headers.get('github-authentication-token-expiration'); if(x) ghMeta.expires=x; }catch(e){} return r; });
+}
+const ghGet=path=>fetch('https://api.github.com/repos/'+ghRepo+'/contents/'+path,
+  {headers:{Authorization:'Bearer '+ghTok,Accept:'application/vnd.github.raw+json'},cache:'no-store'});
+function ghWorked(){ ghMeta.okAt=Date.now(); ghMeta.fails=0; ghMeta.err=''; saveMeta(); health(); }
+function ghFailed(what){ ghMeta.fails=(ghMeta.fails||0)+1; ghMeta.err=what; saveMeta(); health(); }
+const whyNot=st=>st+(st===404?' — repo name wrong, or the token can’t see it'
+  :st===401?' — token rejected or expired':st===403?' — token isn’t allowed to write':'');
+
+/* Sends the entries not yet sent, in a file named after the number of its first
+   entry. That name is the safeguard: if a send got through but the app closed
+   before noting it, the retry finds the file already there, reads how far it
+   went, and carries on from the entry after — nothing twice, nothing skipped. */
 async function sendLog(manual,keepalive){
   if(!ghTok){ if(manual) flash('Paste a GitHub token in settings first.'); return; }
-  /* a send made as the app closes has a hard size limit, so it goes in pieces;
-     whatever is left over goes next time */
-  const all=unsent(), batch=all.slice(0,keepalive?350:4000);
-  if(!batch.length){ ghState='Nothing new since the last send.'; ghPaint();
-    if(manual) flash('Nothing new since the last send.'); return; }
-  const d=new Date(), pad=n=>String(n).padStart(2,'0');
-  const path='logs/'+(devId||'unknown')+'/'+d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+
-    pad(d.getDate())+'-'+pad(d.getHours())+pad(d.getMinutes())+pad(d.getSeconds())+'.json';
+  if(ghBusy){ if(manual) flash('Already sending.'); return; }
+  const lost=Math.max(0,logBase-ghMeta.n);          // dropped off the end of the log before they could be sent
+  const from=Math.max(ghMeta.n,logBase);
+  const batch=actlog.slice(from-logBase,from-logBase+(keepalive?350:4000));
+  if(!batch.length){ ghSummary(); ghPaint(); if(manual) flash('Nothing new since the last send.'); return; }
+  const to=from+batch.length-1, more=actlog.length-(from-logBase)>batch.length;
+  const path='logs/'+(devId||'unknown')+'/b'+String(Math.floor(from/20000)).padStart(3,'0')+
+    '/n'+String(from).padStart(9,'0')+'.json';
+  const d=new Date();
   const body={
-    build:(document.querySelector('.buildstamp')||{textContent:'?'}).textContent,
-    device:devLabel(), agent:navigator.userAgent, sentAt:d.toISOString(),
+    build:buildName(), device:devLabel(), agent:navigator.userAgent, sentAt:d.toISOString(),
+    from:from, to:to, lost:lost,
     covers:[new Date(batch[0].t).toISOString(),new Date(batch[batch.length-1].t).toISOString()],
     onList:items.filter(i=>!i.done).length, inCart:items.filter(i=>i.done).length,
     stores:stores.map(s=>s.name), route:route, aisleOrder:order, brain:brain,
     taught:Object.keys(learned).length, boughtKinds:Object.keys(bought).length,
     entries:batch.map(e=>[e.t,e.k,e.d])
   };
-  ghState='Sending '+batch.length+'…'; ghPaint();
+  ghBusy=true; ghState='Sending '+batch.length+'…'; ghPaint();
+  let again=false;
   try{
-    const r=await fetch('https://api.github.com/repos/'+ghRepo+'/contents/'+path,{
-      method:'PUT', keepalive:!!keepalive,
-      headers:{Authorization:'Bearer '+ghTok,Accept:'application/vnd.github+json'},
-      body:JSON.stringify({message:'log: '+batch.length+' entries from '+devId,
-        content:b64(JSON.stringify(body))})
-    });
+    const r=await ghPut(path,body,'log: entries '+from+'–'+to+' from '+devId,keepalive);
     if(r.ok){
-      ghSent=batch[batch.length-1].t;
-      try{ await STORE.set(GH_SENT_KEY,String(ghSent)); }catch(e){}
-      ghState='Sent '+batch.length+' entries at '+d.toLocaleTimeString()+'.';
-      log('send',batch.length+' entries → '+path);
-      if(manual&&all.length>batch.length) return sendLog(true,false);      // the rest, in the next file
-      if(manual) flash('Sent. Claude can read it now.');
+      ghMeta.n=to+1; ghWorked();
+      log('send','entries #'+from+'–#'+to+(lost?' ('+lost+' older ones were lost before sending)':''));
+      again=more&&!keepalive;
+      if(manual&&!again) flash('Sent. Claude can read it now.');
+    } else if(r.status===422&&!keepalive){
+      /* already there from an earlier try: see how far that one reached */
+      const have=await ghGet(path).then(x=>x.ok?x.json():null).catch(()=>null);
+      if(have&&typeof have.to==='number'&&have.to>=from){
+        ghMeta.n=have.to+1; ghWorked();
+        log('send','entries #'+from+'–#'+have.to+' were already on GitHub; carrying on from #'+(have.to+1));
+        again=ghMeta.n-logBase<actlog.length;
+      } else { ghFailed('422 — a file is in the way'); log('send-fail','422 at '+path); }
     } else {
       const t=await r.text().catch(()=>'');
-      ghState='Failed: '+r.status+(r.status===404?' — repo name wrong, or the token has no access to it'
-        :r.status===401?' — token rejected':r.status===403?' — token lacks Contents write'
-        :r.status===422?' — that file already exists':'')+'.';
-      log('send-fail',r.status+' '+t.slice(0,140));
-      if(manual) flash(ghState);
+      ghFailed(whyNot(r.status)); log('send-fail',r.status+' '+t.slice(0,140));
+      if(manual) flash('Send failed: '+whyNot(r.status)+'.');
     }
   }catch(e){
-    ghState='Failed: '+(e.message||'no connection')+'.';
-    log('send-fail',String((e&&e.message)||e));
+    ghFailed((e&&e.message)||'no connection'); log('send-fail',String((e&&e.message)||e));
     if(manual) flash('Send failed — no connection?');
   }
-  ghPaint();
+  ghBusy=false;
+  if(again) return sendLog(manual,false);
+  ghSummary(); ghPaint();
+}
+/* is there enough waiting, or has it been long enough, to be worth a send? */
+const sendDue=()=>{ const w=unsent().length; return ghAuto&&ghTok&&w&&(w>=120||Date.now()-(ghMeta.okAt||0)>20*60*1000); };
+
+/* A dated copy of the whole list. One a day, taken the first time the app is
+   opened that day (so it is the list as the previous day left it), plus one
+   just before anything that replaces or empties the list. */
+async function backupState(why,keepalive){
+  if(!ghTok) return false;
+  if(why==='daily'){ if(snapBusy) return false; snapBusy=true; }
+  const d=new Date(), day=ymd(d);
+  const name=why==='daily'?day+'.json':day+'-'+pad2(d.getHours())+pad2(d.getMinutes())+pad2(d.getSeconds())+'-'+why+'.json';
+  const body={savedAt:d.toISOString(),why:why,build:buildName(),device:devLabel(),
+    items:items.length,state:snap()};
+  let ok=false;
+  try{
+    const r=await ghPut('state/'+d.getFullYear()+'/'+name,body,'backup ('+why+'): '+items.length+' items',keepalive);
+    if(r.ok||(r.status===422&&why==='daily')){   // 422 on the daily one: another device already made today's
+      ok=true; if(why==='daily') ghMeta.snapDay=day;
+      ghMeta.snapAt=Date.now(); ghWorked();
+      log('backup',(r.ok?'saved ':'already had ')+name);
+    } else { ghFailed(whyNot(r.status)); log('backup-fail',r.status+' '+name); }
+  }catch(e){ ghFailed((e&&e.message)||'no connection'); log('backup-fail',String((e&&e.message)||e)); }
+  if(why==='daily') snapBusy=false;
+  ghSummary(); ghPaint();
+  return ok;
+}
+function dailyBackup(){ if(ghTok&&!unsyncedFrom&&ghMeta.snapDay!==ymd(new Date())) backupState('daily'); }
+
+/* the list of backups, newest first, and putting one back */
+async function openBackups(){
+  if(!ghTok){ flash('Set up the GitHub token first — backups live in that repo.'); return; }
+  const box=$('bk-opts'); box.innerHTML='<p class="hint">Looking…</p>';
+  show('sheet-backups');
+  const y=new Date().getFullYear(); let files=[];
+  for(const yr of [y,y-1]){
+    try{
+      const r=await fetch('https://api.github.com/repos/'+ghRepo+'/contents/state/'+yr,
+        {headers:{Authorization:'Bearer '+ghTok,Accept:'application/vnd.github+json'},cache:'no-store'});
+      if(r.ok) files=files.concat((await r.json()).filter(f=>/\.json$/.test(f.name)).map(f=>({name:f.name,path:f.path})));
+      else if(r.status!==404){ box.innerHTML='<p class="hint">Could not read the backups: '+esc(whyNot(r.status))+'.</p>'; return; }
+    }catch(e){ box.innerHTML='<p class="hint">Could not reach GitHub. Try again with a connection.</p>'; return; }
+    if(files.length>=40) break;
+  }
+  files.sort((a,b)=>a.name<b.name?1:-1); files=files.slice(0,40);
+  if(!files.length){ box.innerHTML='<p class="hint">No backups yet. The first is made the next time the app opens with a connection.</p>'; return; }
+  box.innerHTML='';
+  files.forEach(f=>{
+    const m=f.name.match(/^(\d{4})-(\d\d)-(\d\d)(?:-(\d\d)(\d\d)\d\d-(.+))?\.json$/); if(!m) return;
+    const day=new Date(+m[1],+m[2]-1,+m[3]).toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'});
+    const label=m[4]?day+', '+new Date(2000,0,1,+m[4],+m[5]).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})
+      :day+' — as the day began';
+    const b=document.createElement('button'); b.className='opt';
+    b.innerHTML='<span style="flex:1">'+esc(label)+'</span><span class="mark">'+esc(m[6]?m[6].replace(/-/g,' '):'')+'</span>';
+    let armed=false;
+    b.addEventListener('click',async()=>{
+      if(!armed){ armed=true; b.querySelector('span').textContent='Replace the current list with this one? Tap again';
+        setTimeout(()=>{ if(armed&&b.isConnected){ armed=false; b.querySelector('span').textContent=label; } },5000); return; }
+      b.disabled=true; b.querySelector('span').textContent='Fetching…';
+      try{
+        const r=await ghGet(f.path); if(!r.ok) throw new Error(whyNot(r.status));
+        const got=await r.json(), st=got.state||got;
+        await backupState('before-restore');          // the list as it is now, in case this was the wrong one
+        adoptBackup(st,'the backup from '+label);
+        document.body.classList.toggle('compact',compact);
+        draw(); save(); closeSheets();
+        flash('Restored the list from '+label+'.');
+      }catch(e){ b.disabled=false; armed=false; b.querySelector('span').textContent=label;
+        flash('Could not restore that one: '+((e&&e.message)||e)); }
+    });
+    box.appendChild(b);
+  });
+}
+
+/* Anything that would quietly stop the history or backups leaving the phone
+   gets said out loud, on the main screen, until it is fixed. */
+const alerts={};
+function alertSet(key,msg){
+  if(msg) alerts[key]=msg; else delete alerts[key];
+  const b=$('alertbar'), all=Object.keys(alerts).map(k=>alerts[k]);
+  b.style.display=all.length?'flex':'none';
+  b.innerHTML=all.map(m=>'<span class="lbl">'+esc(m)+'</span>').join('');
+}
+function health(){
+  let m='';
+  if(ghTok){
+    const access=/^(401|403|404)/.test(ghMeta.err||'');
+    if(ghMeta.fails>=3&&access)
+      m='History and backups are not reaching GitHub: '+ghMeta.err+'. Settings → History and backups → paste a new token.';
+    else if(ghMeta.fails>=3&&ghMeta.okAt&&Date.now()-ghMeta.okAt>3*86400000)
+      m='History and backups have not reached GitHub since '+when(ghMeta.okAt)+'.';
+    const x=ghMeta.expires?Date.parse(ghMeta.expires.replace(' UTC','Z').replace(' ','T')):NaN;
+    if(!m&&!isNaN(x)){
+      const days=Math.ceil((x-Date.now())/86400000);
+      if(days<=14) m=days>0?'The GitHub token runs out in '+days+' day'+(days===1?'':'s')+'. After that, history and backups stop until a new one is pasted in settings.'
+        :'The GitHub token has run out. History and backups have stopped until a new one is pasted in settings.';
+    }
+  }
+  alertSet('gh',m);
 }
 
 function logText(){
@@ -1033,8 +1242,9 @@ function logText(){
     'Shopping app — activity log',
     'exported: '+stamp(Date.now()),
     'build: '+(document.querySelector('.buildstamp')||{textContent:'?'}).textContent,
-    'entries: '+actlog.length+' of '+LOG_MAX+'   covering: '+
-      (actlog.length?stamp(actlog[0].t)+' onwards':'nothing yet'),
+    'entries: '+actlog.length+' of '+LOG_MAX+', numbered #'+logBase+' to #'+(logBase+actlog.length-1)+
+      '   covering: '+(actlog.length?stamp(actlog[0].t)+' onwards':'nothing yet'),
+    'sent to GitHub: up to #'+(ghMeta.n-1)+'   last reached: '+when(ghMeta.okAt)+'   list backed up: '+when(ghMeta.snapAt),
     'device: '+devLabel(),
     'items on list: '+items.filter(i=>!i.done).length+'   stores: '+stores.map(s=>s.name).join(', '),
     'aisle route: '+route.join(' > '),
@@ -1048,6 +1258,131 @@ function logText(){
   return head+actlog.map(e=>e.k==='TAP'
     ? stamp(e.t)+'  '+e.d
     : stamp(e.t)+'      '+e.k.padEnd(14)+'  '+e.d).join('\n')+'\n';
+}
+
+/* ---------- two copies of the list becoming one ----------
+   The cloud used to hold "the list", and whichever device saved last replaced
+   it whole — so a phone that had been offline could silently undo what another
+   device did in the meantime. Now every item carries the time it last changed
+   (u), deletions leave a dated marker (gone), and every other piece of state
+   has its own change time (fu). Two copies are combined piece by piece: the
+   newer version of each piece wins, an addition on either side is kept, and a
+   deletion only beats an item that hasn't been touched since. */
+const GONE_TTL=45*24*3600*1000;          // how long a deletion marker is remembered
+const LWW_FIELDS=['bought','order','hist','keepUrl','shut','route','compact','focus','brain','heads','held'];
+const ADD_ONLY=['learned','aliases'];    // nothing is ever removed from these
+const FIELDS=LWW_FIELDS.concat(ADD_ONLY,['stores']);
+
+/* the same data always gives the same text, whatever order its keys were made in */
+function canon(v){
+  if(v===null||v===undefined) return 'null';
+  if(typeof v!=='object') return JSON.stringify(v);
+  if(Array.isArray(v)) return '['+v.map(canon).join(',')+']';
+  return '{'+Object.keys(v).filter(k=>v[k]!==undefined).sort().map(k=>JSON.stringify(k)+':'+canon(v[k])).join(',')+'}';
+}
+const blank=v=>v==null||v===''||(typeof v==='object'&&!Object.keys(v).length);
+const sameVal=(a,b)=>(blank(a)&&blank(b))||canon(a)===canon(b);
+/* an item's content, leaving out its change time and the "new" highlight */
+function sig(it){ const o={}; for(const k in it){ if(k!=='u'&&k!=='fresh') o[k]=it[k]; } return canon(o); }
+
+function mergeSnaps(L,R){
+  const lNewer=(L.rev||0)>(R.rev||0);
+  const lf=L.fu||{}, rf=R.fu||{}, lg=L.gone||{}, rg=R.gone||{};
+  let gave=false, took=false;            // did this device / the cloud contribute anything the other lacked?
+  const S={};
+
+  /* items */
+  const mine={}; (L.items||[]).forEach(i=>{mine[i.id]=i;});
+  const out=[], seen={};
+  (R.items||[]).forEach(r=>{
+    seen[r.id]=1;
+    const l=mine[r.id];
+    if(l){
+      const lu=l.u||0, ru=r.u||0;
+      /* same content, but changed more recently here (say, ticked and unticked):
+         the later time must travel too, or an older deletion elsewhere could
+         still remove it */
+      if(sig(l)===sig(r)){ if(lu>ru){ out.push(l); gave=true; } else out.push(r); return; }
+      if(lu>ru||(lu===ru&&lNewer)){ out.push(l); gave=true; }
+      else { out.push(r); took=true; }
+    }
+    else if(lg[r.id]&&lg[r.id]>=(r.u||0)) gave=true;          // deleted here after they last touched it
+    else { out.push(r); took=true; }
+  });
+  (L.items||[]).forEach(l=>{
+    if(seen[l.id]) return;
+    if(rg[l.id]&&rg[l.id]>=(l.u||0)){ took=true; return; }    // deleted there after we last touched it
+    if(!l.u&&!lNewer){ took=true; return; }                   // predates change times: the newer copy decides
+    out.push(l); gave=true;
+  });
+  S.items=out;
+
+  /* deletion markers: the later of each; dropped once the item is back or the marker is old */
+  const now=Date.now(), alive={}, gone={};
+  out.forEach(i=>{alive[i.id]=1;});
+  [lg,rg].forEach(g=>{ for(const id in g){ if(!alive[id]&&now-g[id]<GONE_TTL) gone[id]=Math.max(gone[id]||0,g[id]); } });
+  for(const id in gone){ if(!rg[id]||rg[id]<gone[id]) gave=true; }
+  S.gone=gone;
+
+  /* everything else: the side that changed it most recently */
+  const fu={}, newest=f=>{ const a=lf[f]||0, b=rf[f]||0; return (a>b||(a===b&&lNewer))?'L':'R'; };
+  LWW_FIELDS.forEach(f=>{
+    fu[f]=Math.max(lf[f]||0,rf[f]||0);
+    if(sameVal(L[f],R[f])){ S[f]=R[f]!==undefined?R[f]:L[f]; return; }
+    if(newest(f)==='L'){ S[f]=L[f]; gave=true; } else { S[f]=R[f]; took=true; }
+  });
+  ADD_ONLY.forEach(f=>{
+    fu[f]=Math.max(lf[f]||0,rf[f]||0);
+    const w=newest(f), base=(w==='L'?L[f]:R[f])||{}, other=(w==='L'?R[f]:L[f])||{};
+    let o=base;
+    for(const k in other){ if(!(k in base)){ if(o===base) o=Object.assign({},base); o[k]=other[k]; } }
+    S[f]=o;
+    if(!sameVal(o,R[f])) gave=true;
+    if(!sameVal(o,L[f])) took=true;
+  });
+  {
+    fu.stores=Math.max(lf.stores||0,rf.stores||0);
+    const w=newest('stores'), base=(w==='L'?L.stores:R.stores)||[], other=(w==='L'?R.stores:L.stores)||[];
+    const have={}; base.forEach(s=>{have[s.id]=1;});
+    const extra=other.filter(s=>!have[s.id]);
+    S.stores=extra.length?base.concat(extra):base;
+    if(!sameVal(S.stores,R.stores)) gave=true;
+    if(!sameVal(S.stores,L.stores)) took=true;
+  }
+  /* an aisle only the losing copy knows, but that items still sit in, is kept */
+  {
+    const rt=(S.route||[]).slice();
+    [L.route||[],R.route||[]].forEach(src=>src.forEach(c=>{
+      if(rt.indexOf(c)<0&&out.some(i=>i.cat===c)){ const at=rt.indexOf('Other'); rt.splice(at<0?rt.length:at,0,c); }
+    }));
+    if(rt.length!==(S.route||[]).length){ S.route=rt; gave=true; }
+  }
+  S.fu=fu;
+  S.patches=Object.assign({},R.patches||{},L.patches||{});
+  if(!sameVal(S.patches,R.patches)) gave=true;
+  S.seq=Math.max(L.seq||0,R.seq||0);
+  S.sseq=Math.max(L.sseq||5,R.sseq||5);
+  S.unsyncedFrom=0;
+  S.rev=gave?Math.max(now,(R.rev||0)+1):(R.rev||0);
+  return {state:S,gave:gave,took:took};
+}
+
+/* Noticing what changed since the last save, and dating it. Done here in one
+   place, by comparison, rather than at every spot that edits something — so a
+   new feature can't forget to do it. */
+const FIELD={stores:()=>stores,learned:()=>learned,aliases:()=>aliases,bought:()=>bought,order:()=>order,
+  hist:()=>hist,keepUrl:()=>keepUrl,shut:()=>shut,route:()=>route,compact:()=>compact,focus:()=>focus,
+  brain:()=>brain,heads:()=>heads,held:()=>held};
+function reshadow(){
+  shadow={}; items.forEach(i=>{shadow[i.id]=sig(i);});
+  shadowF={}; FIELDS.forEach(f=>{shadowF[f]=canon(FIELD[f]());});
+}
+function stamp(){
+  const now=Date.now(), here={};
+  items.forEach(it=>{ here[it.id]=1; const j=sig(it); if(shadow[it.id]!==j){ it.u=now; shadow[it.id]=j; } });
+  for(const id in shadow){ if(!here[id]){ gone[id]=now; delete shadow[id]; } }
+  for(const id in gone){ if(here[id]||now-gone[id]>GONE_TTL) delete gone[id]; }
+  FIELDS.forEach(f=>{ const j=canon(FIELD[f]()); if(shadowF[f]!==j){ fu[f]=now; shadowF[f]=j; } });
 }
 
 /* ---------- cloud sync (Firebase Realtime Database) ----------
@@ -1064,6 +1399,8 @@ const FIREBASE={
 };
 const CLOUD_PATH='lists/main', LOG_PATH='logs';
 let cloudRef=null, cloudState='off', cloudSeen=0, pushT=null;
+let cloudLive=false;     // true once the cloud's current copy has been read since (re)connecting
+let cloudDirty=false;    // something changed here that the cloud hasn't been sent yet
 let unsyncedFrom=0;      // above zero: this device has never heard from the cloud (see load)
 const MIRROR_LOG=false;  // the log is not copied to Firebase while that database is open to anyone
 
@@ -1112,64 +1449,101 @@ function cloudStart(){
     cloudRef=firebase.database().ref(CLOUD_PATH);
     if(MIRROR_LOG){ logRef=firebase.database().ref(LOG_PATH+'/'+(devId||'unknown')); cloudLogState='mirroring…'; }
 
+    /* On every (re)connection the cloud's current copy is fetched and combined
+       with this device's before anything is written. Writing first — which is
+       what a queued offline save used to do — replaced whatever other devices
+       had done in the meantime. */
     firebase.database().ref('.info/connected').on('value',s=>{
-      if(s.val()===true) cloudSay('live'); else cloudSay('offline');
+      if(s.val()!==true){ cloudLive=false; cloudSay('offline'); return; }
+      cloudSay('live');
+      cloudRef.get().then(snapshot=>{
+        onCloud(snapshot.val());
+        cloudLive=true;
+        if(cloudDirty) cloudPush();
+        dailyBackup();                               // now that this device and the cloud agree
+      }).catch(e=>{ cloudSay('error'); log('sync','could not read the cloud: '+(e&&e.message||e)); });
     });
+    cloudRef.on('value',s=>{ if(cloudLive) onCloud(s.val()); },
+      err=>{ cloudSay('error'); log('sync','cloud read failed: '+(err&&err.message||err)); });
+  }catch(e){ cloudSay('error'); log('sync','could not start: '+(e&&e.message||e)); }
+}
 
-    cloudRef.on('value',s=>{
-      const d=s.val();
-      if(!d||!d.items){ unsyncedFrom=0; cloudPush(); return; }   // empty cloud: seed it from this device
-      if(unsyncedFrom){ firstSync(d); return; }     // a device that has never synced must not win
-      if(d.rev===cloudSeen) return;                 // our own write echoing back
-      if((d.rev||0)<rev){ cloudPush(); return; }    // ours is newer and the cloud hasn't got it: send it
-      if((d.rev||0)===rev) return;
-      cloudSeen=d.rev||0;
-      log('cloud-in','adopted remote state, '+((d.items||[]).length)+' items');
-      if(applyState(d)){
-        unsyncedFrom=0;
-        STORE.set(KEY,JSON.stringify(snap()));
-        draw();
-        flash('Updated from your other device.');
-      }
-    },err=>{ cloudSay('error'); console.warn('cloud read failed:',err&&err.message); });
-  }catch(e){ cloudSay('error'); console.warn('cloud init failed:',e&&e.message); }
+/* the cloud's copy has arrived (or changed): fold it into this device's */
+function onCloud(d){
+  if(!d||!d.items){                                  // empty cloud: this really is the first run anywhere
+    if(seedStash){ items=seedStash.concat(items); seedStash=null; }
+    unsyncedFrom=0; cloudLive=true; draw(); save(); return;
+  }
+  if(unsyncedFrom){ firstSync(d); return; }          // a device that has never synced must not win
+  if(d.rev===cloudSeen&&!cloudDirty) return;         // our own write coming back
+  const m=mergeSnaps(snap(),d);
+  cloudSeen=d.rev||0;
+  if(!m.gave&&!m.took){ rev=d.rev||rev; cloudDirty=false; return; }
+  const n0=items.length;
+  applyState(m.state);
+  STORE.set(KEY,JSON.stringify(snap()));
+  if(m.took){
+    log('cloud-in','took changes from the cloud: '+n0+' → '+items.length+' items');
+    draw(); flash('Updated from your other device.');
+  }
+  if(m.gave){
+    log('cloud-out','the cloud was missing changes made here; sent them');
+    cloudDirty=true; cloudLive=true; cloudPush();
+  } else cloudDirty=false;
+}
+
+/* Make a saved copy the truth, here and on every other device: its items are
+   dated now so they beat whatever is out there, and anything not in it is
+   marked deleted rather than left to drift back in. */
+function adoptBackup(d,from){
+  const before=items.map(i=>i.id);
+  if(!applyState(d)) throw new Error('not a list');
+  unsyncedFrom=0; seedStash=null;
+  for(const k in PATCHES) patches[k]=1;            // taken as it is: no one-off migrations on top
+  const now=Date.now(), here={};
+  items.forEach(i=>{ i.u=now; here[i.id]=1; });
+  gone={}; before.forEach(id=>{ if(!here[id]) gone[id]=now; });
+  fu={}; FIELDS.forEach(f=>{ fu[f]=now; });
+  reshadow();
+  log('backup','restored '+items.length+' items from '+from);
 }
 
 /* First contact for a device with no history: take the cloud's list, then put
    back anything added here while waiting, so neither side loses anything. */
 function firstSync(d){
-  const from=unsyncedFrom;
-  const mine=items.filter(i=>(+String(i.id).slice(1)||0)>=from);
+  const mine=items.slice();                          // only things added here while waiting; the starter list is stashed
   cloudSeen=d.rev||0;
   if(!applyState(d)) return;
-  unsyncedFrom=0;
+  unsyncedFrom=0; seedStash=null;
   let kept=0;
   mine.forEach(m=>{
     if(items.some(i=>!i.done&&key(i.name)===key(m.name))) return;
-    m.id='i'+(seq++); items.push(m); kept++;
+    m.id=newId(); items.push(m); kept++;
   });
   log('cloud-in','first sync on this device: took the cloud list, '+d.items.length+' items'+
     (kept?', kept '+kept+' added here':''));
   draw();
-  if(kept) save(); else STORE.set(KEY,JSON.stringify(snap()));
-  flash(kept?'Synced \u2014 your list, plus the '+kept+' you just added.':'Synced \u2014 your list is here.');
+  if(kept){ cloudLive=true; save(); } else STORE.set(KEY,JSON.stringify(snap()));
+  flash(kept?'Synced — your list, plus the '+kept+' you just added.':'Synced — your list is here.');
 }
 
 function cloudPush(){
-  if(!cloudRef||unsyncedFrom) return;
+  cloudDirty=true;
+  if(!cloudRef||unsyncedFrom||!cloudLive) return;    // not connected, or not yet caught up: it goes when we are
   clearTimeout(pushT);
   pushT=setTimeout(()=>{
+    if(!cloudLive) return;
     const data=snap();
-    cloudSeen=data.rev;
+    cloudSeen=data.rev; cloudDirty=false;
     cloudSay('saving');
     cloudRef.set(data)
-      .then(()=>cloudSay('live'))
-      .catch(e=>{ cloudSay('error'); console.warn('cloud write failed:',e&&e.message); });
+      .then(()=>{ if(cloudState==='saving') cloudSay('live'); })
+      .catch(e=>{ cloudDirty=true; cloudSay('error'); log('sync','cloud write failed: '+(e&&e.message||e)); });
   },400);                                            // batch rapid taps into one write
 }
 
 let rev=0;
-function snap(){ return {items,stores,learned,aliases,bought,order,hist,keepUrl,shut,route,compact,seq,sseq,patches,focus,brain,unsyncedFrom,rev}; }
+function snap(){ return {items,stores,learned,aliases,bought,order,hist,keepUrl,shut,route,compact,seq,sseq,patches,focus,brain,heads,held,gone,fu,unsyncedFrom,rev}; }
 function applyState(d){
   if(!d||!d.items) return false;
   items=d.items; stores=d.stores||stores; learned=d.learned||{}; aliases=d.aliases||{};
@@ -1178,10 +1552,14 @@ function applyState(d){
   seq=d.seq||items.length; sseq=d.sseq||5;
   patches=d.patches||{}; focus=d.focus||null; rev=d.rev||0;
   unsyncedFrom=d.unsyncedFrom||0;
+  heads=d.heads||{}; held=Array.isArray(d.held)?d.held:[]; gone=d.gone||{}; fu=d.fu||{};
   brain=Object.assign({pairs:{},no:{},trail:[],trailT:0,trips:0},d.brain||{});
   route=(d.route||ALL).filter(c=>typeof c==='string'&&c.trim()).map(c=>OLD[c]||c);
   route=route.filter((c,i)=>route.indexOf(c)===i);
   if(!route.includes('Other')) route.push('Other');
+  /* remember this as "what was last saved" before tidying, so that anything the
+     tidying changes is noticed and dated like any other change */
+  reshadow();
   migrate();
   /* One thing bought once = one entry, however it got in. Two entries for the
      same thing in two stores each kept their own tick, so crossing it off at
@@ -1192,15 +1570,13 @@ function applyState(d){
 
 let saveWarned=false;
 async function save(){
+  stamp();
   rev=Date.now();
   const ok=await STORE.set(KEY,JSON.stringify(snap()));
   cloudPush();
   if(!ok&&!saveWarned){
     saveWarned=true;
-    const b=$('alertbar');
-    b.style.display='flex';
-    b.innerHTML='<span class="lbl">This browser won’t let the page save anything. '+
-      'Open the file in Chrome, or use Export backup before you close it.</span>';
+    alertSet('save','This browser won\u2019t let the page save anything. Open it in Chrome, or use Export backup before you close it.');
   }
   return ok;
 }
@@ -1226,18 +1602,40 @@ async function load(){
     if(raw) had=applyState(JSON.parse(raw));
   }catch(e){}
   /* Nothing saved on this device: it is a guest until the cloud has spoken.
-     Anything added from here on has an id at or above this number. */
-  if(!had) unsyncedFrom=Math.max(1,seq);
+     The starter list is put aside — it only belongs on screen if the cloud
+     turns out to be empty too, which means a true first run. */
+  if(!had){ seedStash=items; items=[]; unsyncedFrom=1; reshadow(); }
   document.body.classList.toggle('compact',compact);
   $('keep-url').value=keepUrl;
   await loadLog();
   await loadGh();
+  try{ tips=JSON.parse((await STORE.get('shop-tips-1'))||'{}')||{}; }catch(e){ tips={}; }
   logOpen();
   ['new-name','paste','aisle-new','keep-url','mv-new-name','mv-ais-name'].forEach(watchTyping);
-  const added=applyPatches();
+  let added=applyPatches();
+  if(!patches.sweep1){ patches.sweep1=1; if(sweepSpeech()) added=true; }
   draw();
   if(added) save();
   startSync();
+  /* The send made as the app closes can be cut short by the phone; this one,
+     a few seconds after opening, is the dependable one. */
+  setTimeout(()=>{ if(sendDue()) sendLog(false,false); dailyBackup(); },6000);
+  keepStorage();
+}
+
+/* Browsers may clear a site's saved data when the phone runs low on space,
+   unless the site has asked to be kept and been told yes. */
+async function keepStorage(){
+  try{
+    if(!navigator.storage||!navigator.storage.persist) return;
+    const kept=(await navigator.storage.persisted())||(await navigator.storage.persist());
+    const was=await STORE.get('shop-keep-1');
+    if(was!==(kept?'yes':'no')){
+      await STORE.set('shop-keep-1',kept?'yes':'no');
+      log('storage',kept?'the browser has agreed never to clear this app\u2019s data on its own'
+        :'the browser has not promised to keep this app\u2019s data if the phone runs short of space');
+    }
+  }catch(e){}
 }
 
 /* ---------- note parsing + alignment ---------- */
@@ -1336,7 +1734,7 @@ function footIdle(){
 function makeRow(it,inCart,sid,flat){
   const s=store(sid||it.stores[0]);
   const row=document.createElement('div');
-  row.className='row'+(it.fresh&&!inCart?' fresh':'');
+  row.className='row'+(it.fresh&&!inCart&&it.at&&Date.now()-it.at<86400000?' fresh':'');
   const others=flat?it.stores.slice():it.stores.filter(id=>id!==s.id);
   let also='';
   if(others.length){
@@ -1396,8 +1794,10 @@ const daysSince=name=>{
 
 function flip(id,row,inCart,sid){
   const go=()=>{const it=items.find(x=>x.id===id); it.done=!it.done; it.fresh=false;
-    if(it.done){ markBought(it.name); noteTick(it,sid); } else unmarkBought(it.name);
-    log(it.done?'check':'uncheck',it.name+' ('+it.cat+')'); draw(); save();};
+    if(it.done){ markBought(it.name); noteTick(it,sid); } else { unmarkBought(it.name); noteUntick(it); }
+    log(it.done?'check':'uncheck',it.name+' ('+it.cat+')'); draw(); save();
+    if(it.done&&!tips.bin){ tips.bin=1; STORE.set('shop-tips-1',JSON.stringify(tips));
+      flash('In the cart. If something shouldn\u2019t count as bought, the bin beside it there removes it instead.'); }};
   if(inCart||matchMedia('(prefers-reduced-motion: reduce)').matches){go();return;}
   row.classList.add('leaving'); setTimeout(go,160);
 }
@@ -1454,8 +1854,8 @@ function draw(){
     sec.className='store'+(shut['S'+s.id]?' closed':'');
     const head=document.createElement('div');
     head.className='store-head'; head.tabIndex=0; head.setAttribute('role','button');
-    head.innerHTML='<span class="swatch" style="background:'+s.color+'"></span><h2>'+esc(s.name)+
-      '</h2><span class="num">'+mine.length+'</span>';
+    sec.style.setProperty('--store',s.color);
+    head.innerHTML='<h2>'+esc(s.name)+'</h2><span class="num">'+mine.length+'</span>';
     const t=()=>{shut['S'+s.id]=!shut['S'+s.id];draw();save();};
 
     if(!f&&stores.filter(x=>items.some(i=>i.stores.includes(x.id)&&live(i))).length>1){
@@ -1497,13 +1897,13 @@ function draw(){
         ? mine.filter(i=>i.cat===c||!route.includes(i.cat))
         : mine.filter(i=>i.cat===c);
       const kk='A'+s.id+'|'+c;
-      const open=!shut[kk];
+      const open=!shut[kk]&&arranging!==s.id;      // while arranging, only the aisle names show
       const h=document.createElement('div');
       h.className='aisle-head'+(open?'':' closed');
       h.innerHTML='<span class="nm">'+esc(c)+'</span><span class="num">'+g.length+'</span>';
       const tt=()=>{shut[kk]=!shut[kk];draw();save();};
-      /* reorder this aisle, for this store only */
-      if(shown.length>1){
+      /* reorder this aisle, for this store only — shown while arranging */
+      if(shown.length>1&&arranging===s.id){
         const mk=(dir,label,glyph)=>{
           const bn=document.createElement('button');
           bn.className='aord'; bn.innerHTML=glyph;
@@ -1520,10 +1920,21 @@ function draw(){
       body.appendChild(h);
       if(open) g.forEach(it=>body.appendChild(makeRow(it,false,s.id)));
     });
+    if(shown.length>1){
+      const ar=document.createElement('button');
+      ar.className='arrange'; ar.textContent=arranging===s.id?'Done arranging':'Arrange aisles';
+      ar.setAttribute('aria-label',(arranging===s.id?'Finish arranging the aisles in ':'Put the aisles in walking order for ')+s.name);
+      ar.addEventListener('click',()=>{ arranging=arranging===s.id?null:s.id;
+        log('arrange',(arranging?'arranging aisles in ':'done arranging ')+s.name); draw(); });
+      body.appendChild(ar);
+    }
     sec.appendChild(body); host.appendChild(sec);
   });
   if(!host.children.length)
-    host.innerHTML='<p class="hint" style="margin-top:22px">Nothing on the list. Import the note or add something below.</p>';
+    host.innerHTML='<p class="hint" style="margin-top:22px">'+(unsyncedFrom
+      ? (cloudState==='live'||cloudState==='saving'?'Getting your list\u2026'
+         :'Waiting for a connection to fetch your list. Anything you add now is kept and joins it.')
+      : 'Nothing on the list. Import the note or add something below.')+'</p>';
   drawSnoozed(host);
   drawTail();
 }
@@ -1595,15 +2006,32 @@ function noteTick(it,sid){
      being bought in one of them */
   const at=focusOn()||sid||it.stores[0];
   const cat=route.includes(it.cat)?it.cat:'Other';
-  const seen=[...new Set(brain.trail.filter(e=>e.sid===at).map(e=>e.cat))];
-  /* An aisle counts once per trip, the first time it is reached. Counting every
-     item would let five apples and two yogurts pass for ten trips' evidence. */
-  if(!seen.includes(cat)){
-    const p=brain.pairs[at]=brain.pairs[at]||{};
-    seen.forEach(before=>{ p[before+'>'+cat]=(p[before+'>'+cat]||0)+1; });
+  brain.trail.push({sid:at,cat:cat,id:it.id});
+  retrail(at);                              // (the trail starts afresh with each trip, so it stays short)
+}
+/* An aisle counts once per trip, the first time it is reached — counting every
+   item would let five apples and two yogurts pass for ten trips' evidence.
+   Worked out afresh from this trip's ticks each time, so unticking something
+   takes back exactly what ticking it taught. */
+function retrail(sid){
+  const p=brain.pairs[sid]=brain.pairs[sid]||{};
+  const mine=brain.trail.filter(e=>e.sid===sid);
+  mine.forEach(e=>{ (e.gave||[]).forEach(k=>{ if(p[k]){ p[k]--; if(!p[k]) delete p[k]; } }); delete e.gave; });
+  const seen=[];
+  mine.forEach(e=>{
+    if(seen.indexOf(e.cat)>=0) return;
+    e.gave=seen.map(b=>b+'>'+e.cat);
+    e.gave.forEach(k=>{ p[k]=(p[k]||0)+1; });
+    seen.push(e.cat);
+  });
+}
+function noteUntick(it){
+  for(let i=brain.trail.length-1;i>=0;i--){
+    if(brain.trail[i].id!==it.id) continue;
+    const sid=brain.trail[i].sid;
+    (brain.trail[i].gave||[]).forEach(k=>{ const p=brain.pairs[sid]; if(p&&p[k]){ p[k]--; if(!p[k]) delete p[k]; } });
+    brain.trail.splice(i,1); retrail(sid); return;
   }
-  brain.trail.push({sid:at,cat});
-  if(brain.trail.length>120) brain.trail=brain.trail.slice(-120);
 }
 
 /* how many times A was ticked before B, and the other way round */
@@ -1651,6 +2079,9 @@ function refuseHunch(h){
 
 function drawHunch(){
   const box=$('hunchbox');
+  if(tab==='history'){ box.innerHTML=''; return; }
+  const q=nextReview();
+  if(q){ drawReview(box,q); return; }
   if(tab!=='grocery'){ box.innerHTML=''; return; }
   if(hunchOn){                               // already handled some other way?
     const o=aisleOrder(hunchOn.sid);
@@ -1664,6 +2095,36 @@ function drawHunch(){
     '<button id="h-no">No thanks</button></div></div>';
   $('h-yes').addEventListener('click',()=>applyHunch(h));
   $('h-no').addEventListener('click',()=>refuseHunch(h));
+}
+function drawReview(box,q){
+  const more=held.length>1?'<span class="ev">'+(held.length-1)+' more after this</span>':'';
+  let why, text, a, b, c='';
+  if(q.kind==='held'){
+    why='Heard, but not added'; text='“'+esc(q.label)+'”<span class="ev">It sounded like talking rather than shopping.</span>';
+    a=['Add it',()=>reviewAdd(q)]; b=['Leave it off',()=>reviewDismiss(q)];
+  } else if(q.kind==='doubt'){
+    why='Added, but not sure'; text='“'+esc(q.name)+'”<span class="ev">On the list, though '+esc(q.why)+'.</span>';
+    a=['Keep it',()=>reviewKeep(q)]; b=['Take it off',()=>reviewRemove(q)];
+  } else {
+    const live=q.ids.map(id=>items.find(i=>i.id===id&&!i.done)).filter(Boolean);
+    /* removing is the one thing here that can't be undone with a tap, so the
+       whole list of what would go is one tap away, not just a count */
+    const names=live.map(i=>'“'+esc(i.name)+'”');
+    why='A tidy-up'; text=live.length+' thing'+(live.length===1?'':'s')+' on the list read'+(live.length===1?'s':'')+
+      ' like speech rather than shopping: '+
+      (q.open||live.length<=3 ? names.join(', ')+'.'
+        : names.slice(0,2).join(', ')+' and <button class="more" id="r-more">'+(live.length-2)+' more</button>.')+
+      '<span class="ev">Everything said stays in the history either way.</span>';
+    a=['Remove '+live.length,()=>sweepRemove(q)];
+    b=['Leave them',()=>{ dropReview(q); log('sweep','left them on the list'); draw(); save(); }];
+    c='<button id="r-c">One by one</button>';
+  }
+  box.innerHTML='<div class="hunch"><div class="why">'+why+'</div><p>'+text+more+'</p>'+
+    '<div class="ans"><button class="yes" id="r-a">'+a[0]+'</button>'+c+'<button id="r-b">'+b[0]+'</button></div></div>';
+  $('r-a').addEventListener('click',a[1]);
+  $('r-b').addEventListener('click',b[1]);
+  if(c) $('r-c').addEventListener('click',()=>sweepOneByOne(q));
+  if($('r-more')) $('r-more').addEventListener('click',()=>{ q.open=1; drawReview(box,q); });
 }
 
 /* plain-English readout of the conclusions, for settings and the log export */
@@ -1825,12 +2286,16 @@ function remember(it){
   const l=listOf(it);
   log('move',it.name+' -> '+it.stores.map(id=>store(id).name).join('+')+' / '+it.cat+' / '+l);
   learned[norm(it.name)]=[it.stores.slice(),it.cat,l==='parked'?(it.home||'grocery'):l];
+  /* and a lesson for its relatives: other things ending in the same word,
+     when that word isn't one I already know */
+  const w=norm(it.name).split(' '), last=w[w.length-1];
+  if(w.length>1&&!look(last)) heads[last]=[it.stores.slice(),it.cat,l==='parked'?(it.home||'grocery'):l];
   it.fresh=false;
 }
 
 $('mv-new-save').addEventListener('click',()=>{
   const v=$('mv-new-name').value.trim(); if(!v){$('mv-new-name').focus();return;}
-  const s={id:'s'+(sseq++),name:v,color:SPARE[(stores.length-4)%SPARE.length]};
+  const s={id:'s'+(sseq++)+IDTAG,name:v,color:SPARE[(Math.max(0,stores.length-4))%SPARE.length]};
   stores.push(s);
   const it=items.find(x=>x.id===mvId); if(it){it.stores=[s.id];remember(it);}
   draw(); save(); openMove(mvId);
@@ -1907,7 +2372,7 @@ function drawRoute(){
     : 'No activity recorded yet. This device is '+devLabel()+'.';
   $('brainnote').innerHTML=brainText().map(esc).join('<br>');
   $('gh-repo').value=ghRepo;
-  if(ghTok&&/^(Ready|Not set up)/.test(ghState)) ghState='Ready. '+unsent().length+' entries waiting to send.';
+  if(!ghBusy) ghSummary();
   ghPaint();
   $('hist-note').textContent=hist.length
     ? 'Remembers the last '+hist.length+' line'+(hist.length===1?'':'s')+' it imported. Trimming the top of the note is fine — it finds where the note picks up.'
@@ -1951,7 +2416,7 @@ function openFocusPick(){
 }
 
 function closeSheets(keep){
-  ['sheet-move','sheet-import','sheet-set','sheet-pick'].forEach(i=>$(i).classList.remove('on'));
+  ['sheet-move','sheet-import','sheet-set','sheet-pick','sheet-backups'].forEach(i=>$(i).classList.remove('on'));
   if(!keep)$('scrim').classList.remove('on');
 }
 $('scrim').addEventListener('click',()=>closeSheets());
@@ -1992,6 +2457,11 @@ $('do-clip').addEventListener('click',async()=>{
 $('add-btn').addEventListener('click',()=>{
   const box=$('new-name'), v=box.value.trim();
   if(!v){box.focus();return;}
+  if(NOTE.test(v)){                                  // "note …" typed here goes to the history, not the list
+    log('NOTE',(v.replace(NOTE,'').trim()||'(empty)')+'  (typed)');
+    box.value=''; save();
+    flash('Noted. It\u2019s in the history, not on the list.'); return;
+  }
   const dupe=items.find(i=>!i.done&&key(i.name)===key(v));
   if(dupe){
     box.value='';
@@ -2055,6 +2525,8 @@ $('wipe').addEventListener('click',()=>{
     clearTimeout(wipeT); wipeT=setTimeout(wipeDisarm,5000);
     return;
   }
+  backupState('before-wipe');                        // the list as it was, kept on GitHub
+  log('wipe','cleared all '+n+' items');
   items=[]; wipeDisarm(); draw(); save(); closeSheets();
   flash('Cleared all '+n+' items. Note memory kept — re-paste the note and nothing comes back unless it’s new.');
 });
@@ -2063,11 +2535,18 @@ $('gh-save').addEventListener('click',async()=>{
   const t=$('gh-tok').value.trim(), r=$('gh-repo').value.trim();
   if(r) { ghRepo=r; try{ await STORE.set(GH_REPO_KEY,ghRepo); }catch(e){} }
   if(t){ ghTok=t; try{ await STORE.set(GH_KEY,ghTok); }catch(e){}
-    $('gh-tok').value=''; ghState='Token saved. Try “Send log now”.'; }
-  else ghState=ghTok?'Repo saved. Token already set.':'Paste a token too.';
+    $('gh-tok').value='';
+    ghMeta.fails=0; ghMeta.err=''; ghMeta.expires=''; saveMeta(); }     // a new token gets a clean slate
   log('send-setup','repo '+ghRepo+(t?', token set':', token unchanged'));
-  ghPaint(); flash('Saved.');
+  health(); ghSummary(); ghPaint(); flash(t?'Token saved. Sending a first batch\u2026':'Saved.');
+  if(ghTok){ await sendLog(false,false); dailyBackup(); }
 });
+$('bk-now').addEventListener('click',async()=>{
+  if(!ghTok){ flash('Set up the GitHub token first.'); return; }
+  flash('Backing up\u2026');
+  flash(await backupState('by-hand')?'Backed up the list to GitHub.':'Backup failed \u2014 see the line above the buttons.');
+});
+$('bk-open').addEventListener('click',openBackups);
 $('gh-send').addEventListener('click',()=>sendLog(true,false));
 $('gh-auto').addEventListener('click',async()=>{
   ghAuto=!ghAuto;
@@ -2104,8 +2583,10 @@ $('exp-log').addEventListener('click',()=>{
   flash('Log exported — '+actlog.length+' entries.');
 });
 $('clr-log').addEventListener('click',()=>{
-  actlog=[]; try{ STORE.set(LOG_KEY,'[]'); }catch(e){}
-  drawRoute(); flash('Activity log cleared.');
+  const waiting=unsent().length;
+  logBase+=actlog.length; actlog=[];               // the numbers carry on, so the gap shows in the record
+  log('log-cleared',waiting?waiting+' entries had not been sent yet':'everything had already been sent');
+  flushLog(); drawRoute(); flash('Activity log cleared.');
 });
 
 $('imp').addEventListener('click',()=>$('imp-file').click());
@@ -2115,10 +2596,8 @@ $('imp-file').addEventListener('change',e=>{
   r.onload=()=>{try{
     const d=JSON.parse(r.result); if(!d.items) throw 0;
     /* same road as loading: an older backup simply lacks the newer fields */
-    if(!applyState(d)) throw 0;
-    unsyncedFrom=0;
-    for(const k in PATCHES) patches[k]=1;      // a backup is taken as it is: no one-off migrations on top
-    log('backup','restored '+items.length+' items');
+    backupState('before-restore');
+    adoptBackup(d,'a backup file');
     document.body.classList.toggle('compact',compact);
     $('keep-url').value=keepUrl; draw(); save(); closeSheets(); flash('Backup restored.');
   }catch(err){flash('That file could not be read.');}};
@@ -2300,7 +2779,7 @@ const CHATTER=new Set(('i im you he she we they it its this that these those is 
   'also maybe probably seems seem complete completed okay ok nice way too anything something nothing '+
   'everything my your his her their our me him them us favorite please thanks thank sorry wait hey hello '+
   'yeah yep nope right wrong good bad again already still never always').split(' '));
-const knownThing=p=>classify(p)[1]!=='Other'||!!learned[norm(p)];
+const knownThing=p=>classify(p)[1]!=='Other'||!!learned[norm(p)]||!!heads[norm(p).split(' ').pop()];
 function looksSpoken(p,explicit){
   if(learned[norm(p)]) return false;          // placed by hand before: never doubt it again
   const w=norm(p).replace(/'/g,'').split(' ').filter(Boolean);
@@ -2415,7 +2894,8 @@ function heard(text){
   }
   const explicit=PRE.test(text.trim());        // "add…", "buy…": said on purpose
   const lines=parseNote(text);
-  if(!lines.length){ log('parsed','nothing usable'); return; }
+  /* too long or too tangled to be an item: say so, instead of doing nothing */
+  if(!lines.length){ log('parsed','nothing usable'); holdSpoken(text.trim().slice(0,220)); save(); return; }
 
   /* work out what each piece is before touching the list */
   const plan=[];
@@ -2458,15 +2938,25 @@ function heard(text){
       return;
     }
     if(j.kind==='hold'){ holdSpoken(j.base); return; }
-    addSpoken(j.base,fresh,j.sid);
+    addSpoken(j.base,fresh,j.sid,explicit);
   });
+  /* said right after something that sounds like it, and both are real things:
+     both stay, but the first is queued for a second look */
+  if(plan.length===1&&plan[0].kind==='add'&&prev&&!prev.guess&&prev.ids.length===1&&fresh.ids.length===1
+     &&Date.now()-prev.t<REDO_MS&&soundsLike(prev.bases[0],fresh.bases[0])&&items.some(i=>i.id===prev.ids[0])){
+    queueReview({t:Date.now(),kind:'doubt',id:prev.ids[0],name:prev.bases[0],
+      why:'you said \u201c'+fresh.bases[0]+'\u201d straight after, and they sound alike'});
+    log('voice-twin',prev.bases[0]+' / '+fresh.bases[0]);
+  }
   fresh.guess=fresh.ids.length===1&&!knownThing(fresh.bases[0]);
   lastUtterance=fresh.ids.length?fresh:null;
   if(any){ $('v-heard').textContent=''; save(); }
 }
 
-/* one spoken item onto the list — or, if it's there already, woken up */
-function addSpoken(base,fresh,sid){
+/* one spoken item onto the list — or, if it's there already, woken up.
+   sure: it was asked for on purpose ("add …", a named store, a tap), so it
+   is never second-guessed afterwards */
+function addSpoken(base,fresh,sid,sure){
   const dupe=items.find(i=>!i.done&&key(i.name)===key(base));
   if(dupe){
     dupe.snoozed=false; dupe.fresh=true;
@@ -2479,32 +2969,102 @@ function addSpoken(base,fresh,sid){
   addItem(base.replace(/^\w/,c=>c.toUpperCase()),true);
   const it=items[items.length-1];
   if(sid) it.stores=[sid];                       // a store named out loud beats the guess
-  vlog(esc(it.name)+'<span class="where">'+esc(store(it.stores[0]).name)+' · '+esc(it.cat)+'</span>');
-  log('voice-add',it.name+' -> '+store(it.stores[0]).name+' / '+it.cat+' / '+listOf(it)+(sid?' (store named)':''));
+  const unsure=!sure&&!sid&&!knownThing(it.name);
+  log('voice-add',it.name+' -> '+store(it.stores[0]).name+' / '+it.cat+' / '+listOf(it)+(sid?' (store named)':'')+(unsure?' (unsure)':''));
   fresh.bases.push(it.name); fresh.ids.push(it.id);
+  if(!unsure){
+    vlog(esc(it.name)+'<span class="where">'+esc(store(it.stores[0]).name)+' · '+esc(it.cat)+'</span>');
+    return it;
+  }
+  /* added, but I don't know the word: easy to take straight back off, here or
+     from the card that waits on the main screen */
+  const q={t:Date.now(),kind:'doubt',id:it.id,name:it.name,why:'it isn’t something I recognise'};
+  queueReview(q);
+  const row=vlog(esc(it.name)+'<span class="where">added — not sure what it is. Tap to take it off</span>','held');
+  row.addEventListener('click',()=>{
+    if(row.dataset.used) return; row.dataset.used='1';
+    reviewRemove(q); row.className='vitem gone';
+    row.innerHTML=esc(it.name)+'<span class="where">taken off</span>';
+  });
   return it;
 }
 
 /* heard, but it sounded like talking: shown, not added. One tap adds it after
-   all, and remembers the phrase so it isn't doubted a second time. */
+   all — here, or later from the card on the main screen. */
 function holdSpoken(label){
   log('voice-held',JSON.stringify(label));
+  const q={t:Date.now(),kind:'held',label:label};
+  queueReview(q);
   const el=vlog('“'+esc(label)+'”<span class="where">not added — tap if it’s an item</span>','held');
   el.addEventListener('click',()=>{
-    if(el.dataset.used) return;
-    el.dataset.used='1';
-    const fresh={raw:label,bases:[],ids:[],t:Date.now()};
-    const it=addSpoken(norm(label),fresh,null);
-    if(it) learned[norm(it.name)]=[it.stores.slice(),it.cat,listOf(it)==='parked'?'grocery':listOf(it)];
-    log('voice-held-added',label);
-    el.remove();
-    lastUtterance=fresh.ids.length?fresh:null;
-    draw(); save();
+    if(el.dataset.used) return; el.dataset.used='1';
+    reviewAdd(q); el.remove();
   });
 }
 
+/* ---------- things waiting for a yes or a no ----------
+   A phrase the mic chose not to add, or an item it added without knowing what
+   it is. They wait here — one card at a time above the list — instead of
+   vanishing when the mic panel closes. */
+const HELD_MAX=12, HELD_TTL=7*86400000;
+function queueReview(e){
+  held=held.filter(h=>!(h.kind===e.kind&&(e.kind==='held'?norm(h.label)===norm(e.label):h.id===e.id)));
+  held.push(e);
+  if(held.length>HELD_MAX) held=held.slice(-HELD_MAX);
+}
+const dropReview=e=>{ held=held.filter(h=>!(h.kind===e.kind&&h.t===e.t)); };
+function nextReview(){
+  const now=Date.now(), before=held.length;
+  held=held.filter(h=>h&&now-h.t<HELD_TTL&&
+    (h.kind!=='doubt'||items.some(i=>i.id===h.id&&!i.done))&&
+    (h.kind!=='sweep'||h.ids.some(id=>items.some(i=>i.id===id&&!i.done))));
+  return held[0]||null;
+}
+function reviewAdd(q){
+  const fresh={raw:q.label,bases:[],ids:[],t:Date.now()};
+  const it=addSpoken(norm(q.label),fresh,null,true);
+  if(it) learned[norm(it.name)]=[it.stores.slice(),it.cat,listOf(it)==='parked'?'grocery':listOf(it)];
+  dropReview(q); log('review','added “'+q.label+'” after all');
+  lastUtterance=fresh.ids.length?fresh:null;
+  draw(); save();
+}
+function reviewDismiss(q){ dropReview(q); log('review','left “'+q.label+'” off the list'); draw(); save(); }
+function reviewKeep(q){
+  const it=items.find(i=>i.id===q.id);
+  if(it) learned[norm(it.name)]=[it.stores.slice(),it.cat,listOf(it)==='parked'?(it.home||'grocery'):listOf(it)];
+  dropReview(q); log('review','kept “'+q.name+'”'); draw(); save();
+}
+function reviewRemove(q){
+  items=items.filter(i=>i.id!==q.id);
+  dropReview(q); log('review','took “'+q.name+'” off (not bought)');
+  draw(); save();
+}
+/* One-off, for a list that filled up with speech before the mic learned to tell
+   the difference: gather what reads like talking into a single question. */
+function sweepSpeech(){
+  const ids=items.filter(i=>!i.done&&!learned[norm(i.name)]&&(looksSpoken(i.name,false)||NOTE.test(i.name))).map(i=>i.id);
+  if(!ids.length) return false;
+  queueReview({t:Date.now(),kind:'sweep',ids:ids});
+  log('sweep','found '+ids.length+' entries that read like speech, and asked about them');
+  return true;
+}
+function sweepRemove(q){
+  const gone=items.filter(i=>q.ids.indexOf(i.id)>=0&&!i.done);
+  log('sweep','took off '+gone.length+': '+gone.map(i=>JSON.stringify(i.name)).join(', '));
+  items=items.filter(i=>!(q.ids.indexOf(i.id)>=0&&!i.done));
+  dropReview(q); draw(); save();
+  flash('Took '+gone.length+' off the list. Their words are still in the history.');
+}
+function sweepOneByOne(q){
+  const t=Date.now();
+  q.ids.forEach((id,n)=>{ const it=items.find(i=>i.id===id&&!i.done);
+    if(it) held.push({t:t+n+1,kind:'doubt',id:id,name:it.name,why:'it reads like something said, not something to buy'}); });
+  held=held.filter(h=>h!==q&&!(h.kind==='sweep'&&h.t===q.t));
+  log('sweep','going through them one at a time'); draw(); save();
+}
+
 $('mic').addEventListener('click',voiceOpen);
-$('v-close').addEventListener('click',voiceClose);
+$('v-close').addEventListener('click',()=>voiceClose());
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&voiceOn) voiceClose(); });
 
 /* Launched from the home-screen icon or the side key. The flag is consumed
