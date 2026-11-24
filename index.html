@@ -548,7 +548,7 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
        href="https://github.com/Eli-Meyer42/Shopping/deployments">Deploy history</a>
   </div>
 
-  <p class="buildstamp">Build 21 · 24 Nov 2026</p>
+  <p class="buildstamp">Build 22 · 24 Nov 2026</p>
 </div>
 
 <script>
@@ -640,7 +640,10 @@ const EQUIP=new Set(['knife','knives','board','boards','rack','racks','holder','
   'colander','thermometer','scale','timer','pan','pans','pot','pots','skillet','tray','trays',
   'mug','mugs','cutlery','utensil','utensils','mixer','blender','kettle','toaster','press',
   'sharpener','cutter','slicer','scoop','mold','molds','rolling pin','container','containers',
-  'bowl','bowls','lid','lids','jar','jars','dispenser','organizer','stand','hook','hooks','basket','baskets']);
+  'bowl','bowls','lid','lids','jar','jars','dispenser','organizer','stand','hook','hooks','basket','baskets',
+  /* from things actually said: "new linen set", "Calvin and Hobbes set", "body fan", "beach tent", "step ladder" */
+  'set','sets','book','books','toy','toys','game','games','charger','chargers','cable','cables',
+  'pillow','pillows','blanket','blankets','lamp','lamps','fan','fans','tent','tents','ladder','ladders']);
 /* every result is [ [storeIds…], aisle ] */
 const pair=v=>[Array.isArray(v[0])?v[0].slice():[v[0]], v[1]];
 
@@ -943,7 +946,7 @@ document.addEventListener('keydown',e=>{
 },true);
 
 /* sessions: when it was opened, left, come back to, and for how long */
-let openedAt=Date.now(), awayAt=0, leftAt=0;
+let openedAt=Date.now(), awayAt=0, leftAt=0, awayVoiceT=null;
 const BLIP=1500;     // Android flickers the page hidden and back on launch; under this, it's not a visit
 function logOpen(){
   log('app','opened · '+devLabel()+' · '+
@@ -954,21 +957,26 @@ function logOpen(){
 document.addEventListener('visibilitychange',()=>{
   if(document.hidden){
     awayAt=Date.now();
-    if(awayAt-openedAt>BLIP){ log('app','left after '+secs(awayAt-openedAt)); leftAt=awayAt; }
+    /* The mic can't hear anything once the app is put away, so it is closed
+       properly — otherwise coming back finds the panel still up and looking
+       alive, with nothing listening behind it. */
+    clearTimeout(awayVoiceT);
+    awayVoiceT=setTimeout(()=>{ if(document.hidden&&voiceOn) voiceClose('the app was put away'); },BLIP);
+    if(awayAt-openedAt>BLIP&&awayAt-leftAt>BLIP){ log('app','left after '+secs(awayAt-openedAt)); leftAt=awayAt; }
     flushLog(); sendLogBatch();
-    /* not on every glance at the app: when there is a fair amount waiting, or
-       it has been a while since anything was sent */
     if(sendDue()) sendLog(false,true);
   } else {
     const gone=Date.now()-awayAt;
+    clearTimeout(awayVoiceT);
     if(!awayAt||gone<BLIP) return;                 // a flicker: same visit, carry on
+    if(voiceOn) voiceClose('the app was put away');  // (the timer above doesn't run while the phone has the app frozen)
     log('app','back after '+secs(gone)+' away');
-    openedAt=Date.now();
+    openedAt=Date.now(); syncGrace();
   }
 });
 addEventListener('pagehide',()=>{
   const now=Date.now();
-  if(now-leftAt>BLIP&&now-openedAt>BLIP) log('app','closed after '+secs(now-openedAt));
+  if(now-leftAt>BLIP&&now-openedAt>BLIP){ log('app','closed after '+secs(now-openedAt)); leftAt=now; }
   flushLog(); sendLogBatch();
 });
 addEventListener('online',()=>log('net','back online'));
@@ -1126,7 +1134,10 @@ async function sendLog(manual,keepalive){
       if(manual) flash('Send failed: '+whyNot(r.status)+'.');
     }
   }catch(e){
-    ghFailed((e&&e.message)||'no connection'); log('send-fail',String((e&&e.message)||e));
+    /* a send made as the screen goes off is often cut short by the phone; that
+       is expected, not a failure — it goes the next time the app is opened */
+    if(keepalive) log('send-later','the send made on leaving did not get through; it goes on the next open');
+    else { ghFailed((e&&e.message)||'no connection'); log('send-fail',String((e&&e.message)||e)); }
     if(manual) flash('Send failed — no connection?');
   }
   ghBusy=false;
@@ -1273,15 +1284,20 @@ const LWW_FIELDS=['bought','order','hist','keepUrl','shut','route','compact','fo
 const ADD_ONLY=['learned','aliases'];    // nothing is ever removed from these
 const FIELDS=LWW_FIELDS.concat(ADD_ONLY,['stores']);
 
-/* the same data always gives the same text, whatever order its keys were made in */
+/* The same data always gives the same text, whatever order its keys were made
+   in. And "nothing" is nothing however it is written: the cloud does not keep
+   empty lists, empty groups or blanks, so {a:{}} sent from here comes back as
+   {}. Treating those as different made every launch look like news from
+   another device. */
 function canon(v){
-  if(v===null||v===undefined) return 'null';
+  if(v===null||v===undefined||v==='') return '';
   if(typeof v!=='object') return JSON.stringify(v);
-  if(Array.isArray(v)) return '['+v.map(canon).join(',')+']';
-  return '{'+Object.keys(v).filter(k=>v[k]!==undefined).sort().map(k=>JSON.stringify(k)+':'+canon(v[k])).join(',')+'}';
+  if(Array.isArray(v)){ const a=v.map(canon); return a.some(x=>x!=='')?'['+a.join(',')+']':''; }
+  const parts=[];
+  Object.keys(v).sort().forEach(k=>{ const c=canon(v[k]); if(c!=='') parts.push(JSON.stringify(k)+':'+c); });
+  return parts.length?'{'+parts.join(',')+'}':'';
 }
-const blank=v=>v==null||v===''||(typeof v==='object'&&!Object.keys(v).length);
-const sameVal=(a,b)=>(blank(a)&&blank(b))||canon(a)===canon(b);
+const sameVal=(a,b)=>canon(a)===canon(b);
 /* an item's content, leaving out its change time and the "new" highlight */
 function sig(it){ const o={}; for(const k in it){ if(k!=='u'&&k!=='fresh') o[k]=it[k]; } return canon(o); }
 
@@ -1325,7 +1341,13 @@ function mergeSnaps(L,R){
   S.gone=gone;
 
   /* everything else: the side that changed it most recently */
-  const fu={}, newest=f=>{ const a=lf[f]||0, b=rf[f]||0; return (a>b||(a===b&&lNewer))?'L':'R'; };
+  /* with no record of who changed it last, a value beats a blank: a copy that
+     simply lacks a newer field must not wipe it from the copy that has it */
+  const fu={}, newest=f=>{ const a=lf[f]||0, b=rf[f]||0;
+    if(a!==b) return a>b?'L':'R';
+    if(canon(R[f])==='') return 'L';
+    if(canon(L[f])==='') return 'R';
+    return lNewer?'L':'R'; };
   LWW_FIELDS.forEach(f=>{
     fu[f]=Math.max(lf[f]||0,rf[f]||0);
     if(sameVal(L[f],R[f])){ S[f]=R[f]!==undefined?R[f]:L[f]; return; }
@@ -1429,17 +1451,30 @@ function cloudLog(e){
   logPushT=setTimeout(sendLogBatch,6000);
 }
 
+let syncShownAt=Date.now(), syncDownAt=0, syncGraceT=null;
 function cloudSay(s){
-  /* saving and live swap on every single save; only the changes that mean
-     something — dropping offline, erroring, coming back — earn a line */
-  const routine=x=>x==='live'||x==='saving';
-  if(s!==cloudState&&!(routine(s)&&routine(cloudState))) log('sync',cloudState+' \u2192 '+s);
+  const was=cloudState;
   cloudState=s;
   const d=$('syncdot'), t=$('syncword');
   const label={live:'Synced',saving:'Saving…',offline:'Offline — will sync later',
     off:'Not connected',error:'Sync error'}[s]||s;
   if(d) d.className='syncdot '+s;
   if(t) t.textContent=label;
+  /* What earns a line in the history: an error, or the connection dropping
+     while the app is actually in use. It drops every time the app is put away
+     and returns every time it is opened; logging that was a third of the log. */
+  const up=x=>x==='live'||x==='saving';
+  if(s===was||(up(s)&&up(was))) return;
+  if(s==='error'){ log('sync','error'); return; }
+  if(document.hidden||Date.now()-syncShownAt<5000) return;
+  if(up(was)){ syncDownAt=Date.now(); log('sync','lost the connection'); }
+  else if(up(s)){ log('sync','connected'+(syncDownAt?' again after '+secs(Date.now()-syncDownAt):'')); syncDownAt=0; }
+}
+/* opening the app: give the connection five seconds before calling it a problem */
+function syncGrace(){
+  syncShownAt=Date.now(); clearTimeout(syncGraceT);
+  syncGraceT=setTimeout(()=>{ if(!document.hidden&&cloudState!=='live'&&cloudState!=='saving')
+    log('sync','still '+cloudState+' five seconds after opening'); },5200);
 }
 
 function cloudStart(){
@@ -1472,24 +1507,43 @@ function cloudStart(){
 function onCloud(d){
   if(!d||!d.items){                                  // empty cloud: this really is the first run anywhere
     if(seedStash){ items=seedStash.concat(items); seedStash=null; }
-    unsyncedFrom=0; cloudLive=true; draw(); save(); return;
+    unsyncedFrom=0; cloudLive=true; contentFixes(); draw(); save(); return;
   }
   if(unsyncedFrom){ firstSync(d); return; }          // a device that has never synced must not win
   if(d.rev===cloudSeen&&!cloudDirty) return;         // our own write coming back
   const m=mergeSnaps(snap(),d);
   cloudSeen=d.rev||0;
   if(!m.gave&&!m.took){ rev=d.rev||rev; cloudDirty=false; return; }
-  const n0=items.length;
+  const before=listFace();
   applyState(m.state);
   STORE.set(KEY,JSON.stringify(snap()));
   if(m.took){
-    log('cloud-in','took changes from the cloud: '+n0+' → '+items.length+' items');
-    draw(); flash('Updated from your other device.');
+    const what=faceDiff(before,listFace());
+    log('cloud-in',what?'from the cloud: '+what:'took settings or lessons from the cloud; the list itself is unchanged');
+    draw();
+    if(what) flash('Updated from your other device: '+what+'.');
   }
   if(m.gave){
     log('cloud-out','the cloud was missing changes made here; sent them');
     cloudDirty=true; cloudLive=true; cloudPush();
   } else cloudDirty=false;
+  if(tidied()) save();                 // loading tidied something up: date it and send it, so it settles
+}
+/* the list as a person sees it, for telling whether an update changed anything visible */
+function listFace(){ const o={}; items.forEach(i=>{ o[i.id]=i.name+'|'+(i.done?1:0)+'|'+listOf(i)+'|'+(i.snoozed?1:0)+'|'+i.stores.join(',')+'|'+i.cat; }); return o; }
+function faceDiff(a,b){
+  let add=0, gone=0, chg=0;
+  for(const id in b){ if(!(id in a)) add++; else if(a[id]!==b[id]) chg++; }
+  for(const id in a){ if(!(id in b)) gone++; }
+  const bits=[]; if(add) bits.push(add+' added'); if(gone) bits.push(gone+' removed'); if(chg) bits.push(chg+' changed');
+  return bits.join(', ');
+}
+/* did loading change anything compared with what was saved? */
+function tidied(){
+  const here={};
+  if(items.some(it=>{ here[it.id]=1; return shadow[it.id]!==sig(it); })) return true;
+  for(const id in shadow){ if(!here[id]) return true; }
+  return false;
 }
 
 /* Make a saved copy the truth, here and on every other device: its items are
@@ -1522,8 +1576,9 @@ function firstSync(d){
   });
   log('cloud-in','first sync on this device: took the cloud list, '+d.items.length+' items'+
     (kept?', kept '+kept+' added here':''));
+  const fixed=contentFixes();
   draw();
-  if(kept){ cloudLive=true; save(); } else STORE.set(KEY,JSON.stringify(snap()));
+  if(kept||fixed||tidied()){ cloudLive=true; save(); } else STORE.set(KEY,JSON.stringify(snap()));
   flash(kept?'Synced — your list, plus the '+kept+' you just added.':'Synced — your list is here.');
 }
 
@@ -1533,7 +1588,7 @@ function cloudPush(){
   clearTimeout(pushT);
   pushT=setTimeout(()=>{
     if(!cloudLive) return;
-    const data=snap();
+    const data=JSON.parse(JSON.stringify(snap()));   // exactly what would be stored: no blanks the cloud would refuse
     cloudSeen=data.rev; cloudDirty=false;
     cloudSay('saving');
     cloudRef.set(data)
@@ -1613,13 +1668,14 @@ async function load(){
   logOpen();
   ['new-name','paste','aisle-new','keep-url','mv-new-name','mv-ais-name'].forEach(watchTyping);
   let added=applyPatches();
-  if(!patches.sweep1){ patches.sweep1=1; if(sweepSpeech()) added=true; }
+  if(!unsyncedFrom&&contentFixes()) added=true;
   draw();
-  if(added) save();
+  if(added||tidied()) save();
   startSync();
   /* The send made as the app closes can be cut short by the phone; this one,
      a few seconds after opening, is the dependable one. */
-  setTimeout(()=>{ if(sendDue()) sendLog(false,false); dailyBackup(); },6000);
+  setTimeout(()=>{ if(sendDue()) sendLog(false,false); dailyBackup(); },3000);
+  syncGrace();
   keepStorage();
 }
 
@@ -2098,13 +2154,28 @@ function drawHunch(){
 }
 function drawReview(box,q){
   const more=held.length>1?'<span class="ev">'+(held.length-1)+' more after this</span>':'';
-  let why, text, a, b, c='';
+  let why, text, a, b, c=null;
   if(q.kind==='held'){
     why='Heard, but not added'; text='“'+esc(q.label)+'”<span class="ev">It sounded like talking rather than shopping.</span>';
     a=['Add it',()=>reviewAdd(q)]; b=['Leave it off',()=>reviewDismiss(q)];
   } else if(q.kind==='doubt'){
-    why='Added, but not sure'; text='“'+esc(q.name)+'”<span class="ev">On the list, though '+esc(q.why)+'.</span>';
+    /* the usual trouble with a word I don't know isn't that it's wrong, it's
+       that it's in the wrong place: unknown real things are mostly errands */
+    const it=items.find(i=>i.id===q.id), other=it&&listOf(it)==='errand'?'grocery':'errand';
+    why='Added, but not sure'; text='“'+esc(q.name)+'”<span class="ev">On the '+(other==='errand'?'grocery list':'errands list')+', though '+esc(q.why)+'.</span>';
     a=['Keep it',()=>reviewKeep(q)]; b=['Take it off',()=>reviewRemove(q)];
+    c=[other==='errand'?'It’s an errand':'It’s a grocery',()=>reviewRefile(q,other)];
+  } else if(q.kind==='swap'){
+    why='Swapped'; text='“'+esc(q.old.name)+'” became “'+esc(q.name)+'”<span class="ev">You said it again straight after, so the first one was taken off.</span>';
+    a=['That’s right',()=>{ dropReview(q); log('review','swap confirmed: '+q.old.name+' → '+q.name); draw(); save(); }];
+    b=['Keep both',()=>reviewKeepBoth(q)];
+  } else if(q.kind==='storefix'){
+    const live=q.ids.map(id=>items.find(i=>i.id===id&&!i.done)).filter(Boolean);
+    why='A store in the name';
+    text=live.map(i=>{ const sf=storeFirst(i.name); return '“'+esc(i.name)+'” → “'+esc(cap(sf?sf.rest:i.name))+'” at '+esc(sf?store(sf.sid).name:'?'); }).join('<br>')+
+      '<span class="ev">Saying a store first now files the item there. '+(live.length===1?'This one was':'These were')+' added before that worked.</span>';
+    a=['Fix '+(live.length===1?'it':'them'),()=>storeFixApply(q)];
+    b=['Leave as is',()=>{ dropReview(q); log('storefix','left as they are'); draw(); save(); }];
   } else {
     const live=q.ids.map(id=>items.find(i=>i.id===id&&!i.done)).filter(Boolean);
     /* removing is the one thing here that can't be undone with a tap, so the
@@ -2117,14 +2188,79 @@ function drawReview(box,q){
       '<span class="ev">Everything said stays in the history either way.</span>';
     a=['Remove '+live.length,()=>sweepRemove(q)];
     b=['Leave them',()=>{ dropReview(q); log('sweep','left them on the list'); draw(); save(); }];
-    c='<button id="r-c">One by one</button>';
+    c=['One by one',()=>sweepOneByOne(q)];
   }
   box.innerHTML='<div class="hunch"><div class="why">'+why+'</div><p>'+text+more+'</p>'+
-    '<div class="ans"><button class="yes" id="r-a">'+a[0]+'</button>'+c+'<button id="r-b">'+b[0]+'</button></div></div>';
+    '<div class="ans"><button class="yes" id="r-a">'+a[0]+'</button>'+(c?'<button id="r-c">'+c[0]+'</button>':'')+
+    '<button id="r-b">'+b[0]+'</button></div></div>';
   $('r-a').addEventListener('click',a[1]);
   $('r-b').addEventListener('click',b[1]);
-  if(c) $('r-c').addEventListener('click',()=>sweepOneByOne(q));
+  if(c) $('r-c').addEventListener('click',c[1]);
   if($('r-more')) $('r-more').addEventListener('click',()=>{ q.open=1; drawReview(box,q); });
+}
+const cap=t=>String(t).replace(/^\w/,c=>c.toUpperCase());
+/* right thing, wrong list: move it, and remember — for it and for its relatives */
+function reviewRefile(q,to){
+  const it=items.find(i=>i.id===q.id);
+  if(it){ it.list=to; remember(it); }
+  dropReview(q); log('review','“'+q.name+'” is '+(to==='errand'?'an errand':'a grocery')+', not '+(to==='errand'?'a grocery':'an errand'));
+  draw(); save(); flash(q.name+' moved to '+(to==='errand'?'Errands':'Groceries')+'.');
+}
+function reviewKeepBoth(q){
+  const o=q.old; o.id=newId(); o.done=false; o.fresh=false;
+  items.push(o);
+  dropReview(q); log('review','kept both: put “'+o.name+'” back beside “'+q.name+'”');
+  draw(); save(); flash(o.name+' is back on the list.');
+}
+function storeFixApply(q){
+  const done=[];
+  q.ids.forEach(id=>{
+    const it=items.find(i=>i.id===id&&!i.done), sf=it&&storeFirst(it.name);
+    if(!sf) return;
+    const was=it.name;
+    it.name=cap(sf.rest); it.stores=[sf.sid]; it.cat=classify(it.name)[1];
+    learned[norm(it.name)]=[it.stores.slice(),it.cat,listOf(it)==='parked'?(it.home||'grocery'):listOf(it)];
+    log('storefix',was+' → '+it.name+' at '+store(sf.sid).name);
+    done.push(it.name+' at '+store(sf.sid).name);
+  });
+  dropReview(q); mergeDupes(); draw(); save();
+  if(done.length) flash('Now: '+done.join(', ')+'.');
+}
+/* The one-off repairs that look at what is on the list. A device that has
+   nothing saved yet must not run them against its empty list and then tell
+   every other device they are done — so they run once this device has the
+   real list: on loading it, or straight after its first sync. */
+function contentFixes(){
+  let ran=false;
+  if(!patches.sweep1){ patches.sweep1=1; sweepSpeech(); ran=true; }
+  if(!patches.fix22){ patches.fix22=1; fixUps22(); ran=true; }
+  return ran;
+}
+/* One-off repairs for things earlier builds got wrong and later fixes didn't
+   reach back to: every change is narrow, named in the history, and said aloud. */
+function fixUps22(){
+  /* a "trip" that was only an errand being ticked on and off, from before errands stopped counting */
+  if(!Object.keys(brain.pairs||{}).some(k=>Object.keys(brain.pairs[k]||{}).length)){ brain.trips=0; brain.trail=[]; brain.trailT=0; }
+  /* things that aren't food, filed under a food aisle before "equipment isn't food" existed */
+  const moved=[];
+  items.forEach(i=>{
+    if(i.done||learned[norm(i.name)]) return;
+    const w=norm(i.name).split(' ');
+    if(w.length<2||!EQUIP.has(w[w.length-1])) return;
+    let ch=false;
+    if(i.cat!=='Other'&&i.cat!=='Household'){ i.cat='Other'; i.stores=[P]; ch=true; }
+    if(i.list==='parked'){ if(i.home!=='errand'){ i.home='errand'; ch=true; } }
+    else if(i.list==='grocery'){ i.list='errand'; ch=true; }
+    if(ch){ moved.push(i.name); log('refile',i.name+' is a thing, not a food: now under Other, as an errand'); }
+  });
+  if(moved.length) setTimeout(()=>flash('Re-filed '+moved.length+' thing'+(moved.length===1?'':'s')+' that '+(moved.length===1?'isn’t':'aren’t')+' food: '+moved.join(', ')+'.'),1800);
+  /* the tidy-up of speech on the list, redone with what has been learned since
+     about what talk looks like ("without having", "spoke", "notes"): a card
+     still waiting is brought up to date; otherwise a new one covers the rest */
+  sweepSpeech();
+  /* items named "<store> <thing>" from before a store said first meant anything */
+  const ids=items.filter(i=>!i.done&&storeFirst(i.name)).map(i=>i.id);
+  if(ids.length){ queueReview({t:Date.now()+1,kind:'storefix',ids:ids}); log('storefix','found '+ids.length+' item(s) with a store in the name, and asked about them'); }
 }
 
 /* plain-English readout of the conclusions, for settings and the log export */
@@ -2182,7 +2318,7 @@ function drawHistory(host){
       '<span class="hp">'+(live?'\u2713':'+')+'</span>';
     d.title=live?'Already on the list':'Add it back';
     d.addEventListener('click',()=>{
-      if(live){ flash('Already on the list.'); return; }
+      if(live){ log('history-tap',r.k+' is already on the list'); flash(r.k.replace(/^\w/,c=>c.toUpperCase())+' is already on the list.'); return; }
       addItem(r.k.replace(/^\w/,c=>c.toUpperCase()),true);
       log('history-add',r.k); draw(); save(); flash('Added '+r.k+'.');
     });
@@ -2301,7 +2437,7 @@ $('mv-new-save').addEventListener('click',()=>{
   draw(); save(); openMove(mvId);
 });
 function newAisle(v){
-  v=v.trim().slice(0,28);
+  v=v.replace(/[.$#\[\]\/]/g,' ').replace(/\s+/g,' ').trim().slice(0,28);   // the cloud refuses these characters in names
   if(!v) return null;
   const was=route.find(c=>c.toLowerCase()===v.toLowerCase());
   if(was) return was;
@@ -2689,6 +2825,7 @@ function listen(){
        this API behaves normally; only the rest are worth recording */
     if(ev.error==='no-speech') return;
     if(ev.error==='aborted'&&ev.target&&ev.target.__mine) return;
+    if(document.hidden) return;                    // the phone cutting the mic as the app is put away
     log('voice-error',ev.error);
     if(ev.error==='aborted'||ev.error==='network') return;
     $('v-hint').textContent='Voice error: '+ev.error;
@@ -2741,7 +2878,13 @@ function splitSpoken(phrase){
   if(isKnown(n)||KEEP_WHOLE.includes(n)) return [n];
   if(/\s+and\s+|\s+plus\s+|\s+then\s+/.test(n)){
     const parts=n.split(/\s+and\s+|\s+plus\s+|\s+then\s+/).map(s=>s.trim()).filter(s=>s.length>1);
-    if(parts.length>1){ const out=[]; parts.forEach(p=>out.push(...splitSpoken(p))); return out; }
+    /* "milk and eggs" is two things. "Calvin and Hobbes set" is one: when
+       neither side is anything I recognise, there is no reason to think the
+       "and" is joining a list. */
+    if(parts.length>1){
+      if(!parts.some(p=>splitSpoken(p).some(isKnown))) return [n];
+      const out=[]; parts.forEach(p=>out.push(...splitSpoken(p))); return out;
+    }
   }
   const w=n.split(' ');
   if(w.length<2) return [n];
@@ -2763,9 +2906,26 @@ function splitSpoken(phrase){
 
 const MEANT=/^(i meant( to say)?|no,? i meant|i said|correction|actually,? (i meant|make that)|make that|not that,? )\b[\s:,.-]*/i;
 const SCRATCH=/^(scratch that|delete that|remove that|undo( that)?|never ?mind|forget that)\.?$/i;
-const NOTE=/^(note|remember|for the record|bug|heads up|fyi)\b[\s:,.-]*/i;
+const NOTE=/^(notes?|remember|for the record|bug|heads up|fyi)\b[\s:,.-]*/i;
+const words=t=>String(t).trim().split(/\s+/).filter(Boolean).length;
+const LONG=6;             // this many words is a sentence, and a sentence is a note
 const END_NOTE=/^(end( of)? note|note (over|done|finished|ends?)|that'?s the note|stop note|finish note)\.?$/i;
 let lastUtterance=null;   // {raw, bases, ids, t} — what the previous phrase produced
+/* Kept across the app being reopened: on this phone each press of the side key
+   relaunches it, so "I meant…", "scratch that" and saying it again have to
+   reach back to something said a few seconds ago in the previous launch. */
+const LAST_KEY='shop-last-1';
+function setLast(x){
+  lastUtterance=x;
+  try{ if(x) localStorage.setItem(LAST_KEY,JSON.stringify(x)); else localStorage.removeItem(LAST_KEY); }catch(e){}
+}
+try{ const x=JSON.parse(localStorage.getItem(LAST_KEY)||'null'); if(x&&Date.now()-x.t<90000) lastUtterance=x; }catch(e){}
+/* speech that isn't shopping, kept instead of dropped */
+function saidNote(t,why){
+  log('NOTE',t+'  ('+why+')');
+  vlog('\u201c'+esc(t)+'\u201d<span class="where">kept as a note</span>','note');
+  save();
+}
 
 /* ---- is this a shopping item, or just me talking near the phone? ----
    Judged by the shape of the phrase, never by whether the word is known:
@@ -2778,8 +2938,12 @@ const CHATTER=new Set(('i im you he she we they it its this that these those is 
   'know knows say said saying tell told mean meant make makes made gets got going gonna about there here now '+
   'also maybe probably seems seem complete completed okay ok nice way too anything something nothing '+
   'everything my your his her their our me him them us favorite please thanks thank sorry wait hey hello '+
-  'yeah yep nope right wrong good bad again already still never always').split(' '));
-const knownThing=p=>classify(p)[1]!=='Other'||!!learned[norm(p)]||!!heads[norm(p).split(' ').pop()];
+  'yeah yep nope right wrong good bad again already still never always '+
+  'come go look see stop spoke speak talk without having happened happening hi bye oh um uh hmm huh wow well sure fine').split(' '));
+/* known: it has an aisle, or I was shown where it goes, or its last word says
+   it is a thing rather than a food ("… knives", "… set") */
+const knownThing=p=>{ const n=norm(p), last=n.split(' ').pop();
+  return classify(p)[1]!=='Other'||!!learned[n]||!!heads[last]||(n!==last&&EQUIP.has(last)); };
 function looksSpoken(p,explicit){
   if(learned[norm(p)]) return false;          // placed by hand before: never doubt it again
   const w=norm(p).replace(/'/g,'').split(' ').filter(Boolean);
@@ -2826,7 +2990,14 @@ function soundsLike(a,b){
   if(x.length<2||y.length<2) return false;             // too little to go on
   return editDist(x,y)<=Math.max(1,Math.floor(Math.max(x.length,y.length)/4));
 }
-const REDO_MS=12000;      // "in a row" means within twelve seconds
+const VARY_MS=20000;      // "straight after" means within twenty seconds, even across a relaunch
+function variantOf(a,b){
+  if(key(a)===key(b)) return false;                    // the same thing is a duplicate, not a variation
+  if(soundsLike(a,b)) return true;
+  const A=key(a).split(' '), B=key(b).split(' ');
+  const inside=(x,y)=>x.every(w=>y.indexOf(w)>=0);
+  return inside(A,B)||inside(B,A);
+}
 
 function undoLast(){
   if(!lastUtterance||!lastUtterance.ids.length) return 0;
@@ -2863,7 +3034,7 @@ function heard(text){
     const n=undoLast();
     log('scratch',n?('undid '+lastUtterance.bases.join(', ')):'nothing to undo');
     vlog(n?'Undid '+esc(lastUtterance.bases.join(', ')):'Nothing to undo','gone');
-    lastUtterance=null; draw(); save(); quiet(); return;
+    setLast(null); draw(); save(); quiet(); return;
   }
 
   if(MEANT.test(text)){
@@ -2880,10 +3051,26 @@ function heard(text){
     } else {
       log('correction','nothing to correct; treating as a new item: '+JSON.stringify(meant));
     }
-    lastUtterance=null;
-    if(meant) heard(meant);              // add what he actually said
-    else { draw(); save(); }
+    setLast(null);
+    if(meant){
+      /* What follows "I meant" is the correction itself: one thing, exactly as
+         said. It isn't split at "and" or second-guessed — and it is remembered,
+         so the same words come out whole the next time too. */
+      const fresh={raw:meant,bases:[],ids:[],t:Date.now()};
+      const sf=storeFirst(meant);
+      const said=(sf?sf.rest:meant).trim().replace(/[.!?]+$/,''), fixed=unmishear(norm(said));
+      const it=addSpoken(fixed!==norm(said)?fixed:said,fresh,sf?sf.sid:null,false);
+      if(it) learned[norm(it.name)]=[it.stores.slice(),it.cat,listOf(it)==='parked'?'grocery':listOf(it)];
+      setLast(fresh.ids.length?fresh:null);
+      $('v-heard').textContent='';
+    }
+    draw(); save(); quiet();
     return;
+  }
+
+  /* "note" misheard as "no": nobody's shopping item is a sentence starting "no" */
+  if(/^no\b/i.test(text.trim())&&words(text)>=LONG){
+    saidNote(text.trim().replace(/^no\b[\s,]*/i,''),'heard as \u201cno \u2026\u201d'); quiet(); return;
   }
 
   if(STOP_WORDS.test(norm(text))){
@@ -2895,33 +3082,42 @@ function heard(text){
   const explicit=PRE.test(text.trim());        // "add…", "buy…": said on purpose
   const lines=parseNote(text);
   /* too long or too tangled to be an item: say so, instead of doing nothing */
-  if(!lines.length){ log('parsed','nothing usable'); holdSpoken(text.trim().slice(0,220)); save(); return; }
+  if(!lines.length){ log('parsed','a sentence, not an item'); saidNote(text.trim(),'said without \u201cnote\u201d'); quiet(); return; }
 
   /* work out what each piece is before touching the list */
   const plan=[];
   lines.forEach(l=>{
     if(l.rm){ splitSpoken(l.label).forEach(b=>plan.push({kind:'rm',base:b})); return; }
-    if(looksSpoken(l.label,explicit)){ plan.push({kind:'hold',base:l.label}); return; }
+    /* talking, not shopping: a whole sentence is kept as a note; a short
+       phrase is held back with a card, in case it was an item after all */
+    if(looksSpoken(l.label,explicit)){ plan.push({kind:words(l.label)>=LONG?'note':'hold',base:l.label}); return; }
     const sf=storeFirst(l.label);
     splitSpoken(sf?sf.rest:l.label).forEach(b=>plan.push({kind:'add',base:b,sid:sf?sf.sid:null}));
   });
-  log('parsed',plan.map(j=>({rm:'-',hold:'?',add:'+'}[j.kind])+j.base+
+  log('parsed',plan.map(j=>({rm:'-',hold:'?',add:'+',note:'~'}[j.kind])+j.base+
     (j.sid?' @'+store(j.sid).name:'')).join(' | '));
 
-  /* The same thing said again straight after a guess: the repeat is the fix.
-     Only when the first attempt landed on something unrecognised — two known
-     items in a row are just two items. */
+  /* Said again, slightly differently, straight after: the newer one is what
+     was meant. The first comes off the list, and a card records the swap so it
+     can be put back with a tap. "Slightly differently" is either sounding
+     alike ("leak" / "leek") or one being the other with words added
+     ("salmon" / "smoked salmon"). */
   const prev=lastUtterance;
-  if(plan.length===1&&plan[0].kind==='add'&&prev&&prev.guess&&prev.ids.length===1
-     &&Date.now()-prev.t<REDO_MS&&soundsLike(prev.bases[0],plan[0].base)){
-    const wrong=prev.bases[0], right=plan[0].base, sure=knownThing(right);
-    undoLast();
-    if(sure) aliases[norm(wrong)]=norm(right);            // it knows the second one, so learn the mishearing
-    log('redo','took '+JSON.stringify(right)+' as the fix for '+JSON.stringify(wrong)+(sure?' | alias saved':''));
-    vlog('“'+esc(wrong)+'” → '+esc(right)+'<span class="where">took the repeat as the fix</span>','gone');
+  let swapped=null;
+  if(plan.length===1&&plan[0].kind==='add'&&prev&&prev.ids.length===1&&Date.now()-prev.t<VARY_MS){
+    const old=items.find(i=>i.id===prev.ids[0]&&!i.done);
+    if(old&&variantOf(old.name,plan[0].base)){
+      swapped=JSON.parse(JSON.stringify(old));
+      items=items.filter(i=>i.id!==old.id);
+      held=held.filter(h=>!(h.kind==='doubt'&&h.id===old.id));
+      const sure=prev.guess&&knownThing(plan[0].base);
+      if(sure) aliases[norm(old.name)]=norm(plan[0].base);        // the first was a mishearing of something known: learn it
+      log('redo','took '+JSON.stringify(plan[0].base)+' as what was meant by '+JSON.stringify(old.name)+', and took that off'+(sure?' | alias saved':''));
+      vlog('\u201c'+esc(old.name)+'\u201d \u2192 '+esc(plan[0].base)+'<span class="where">took the repeat as the fix</span>','gone');
+    }
   }
 
-  let any=false;
+  let any=false, landed=null;
   const fresh={raw:text,bases:[],ids:[],t:Date.now()};
   plan.forEach(j=>{
     any=true;
@@ -2938,18 +3134,12 @@ function heard(text){
       return;
     }
     if(j.kind==='hold'){ holdSpoken(j.base); return; }
-    addSpoken(j.base,fresh,j.sid,explicit);
+    if(j.kind==='note'){ saidNote(j.base,'said without \u201cnote\u201d'); return; }
+    landed=addSpoken(j.base,fresh,j.sid,explicit);
   });
-  /* said right after something that sounds like it, and both are real things:
-     both stay, but the first is queued for a second look */
-  if(plan.length===1&&plan[0].kind==='add'&&prev&&!prev.guess&&prev.ids.length===1&&fresh.ids.length===1
-     &&Date.now()-prev.t<REDO_MS&&soundsLike(prev.bases[0],fresh.bases[0])&&items.some(i=>i.id===prev.ids[0])){
-    queueReview({t:Date.now(),kind:'doubt',id:prev.ids[0],name:prev.bases[0],
-      why:'you said \u201c'+fresh.bases[0]+'\u201d straight after, and they sound alike'});
-    log('voice-twin',prev.bases[0]+' / '+fresh.bases[0]);
-  }
+  if(swapped&&landed) queueReview({t:Date.now(),kind:'swap',id:landed.id,name:landed.name,old:swapped});
   fresh.guess=fresh.ids.length===1&&!knownThing(fresh.bases[0]);
-  lastUtterance=fresh.ids.length?fresh:null;
+  setLast(fresh.ids.length?fresh:null);
   if(any){ $('v-heard').textContent=''; save(); }
 }
 
@@ -2993,8 +3183,9 @@ function addSpoken(base,fresh,sid,sure){
    all — here, or later from the card on the main screen. */
 function holdSpoken(label){
   log('voice-held',JSON.stringify(label));
+  /* shown here and named again as the mic closes, but no card afterwards:
+     every short phrase really held back so far turned out to be talk */
   const q={t:Date.now(),kind:'held',label:label};
-  queueReview(q);
   const el=vlog('“'+esc(label)+'”<span class="where">not added — tap if it’s an item</span>','held');
   el.addEventListener('click',()=>{
     if(el.dataset.used) return; el.dataset.used='1';
@@ -3014,18 +3205,19 @@ function queueReview(e){
 }
 const dropReview=e=>{ held=held.filter(h=>!(h.kind===e.kind&&h.t===e.t)); };
 function nextReview(){
-  const now=Date.now(), before=held.length;
-  held=held.filter(h=>h&&now-h.t<HELD_TTL&&
-    (h.kind!=='doubt'||items.some(i=>i.id===h.id&&!i.done))&&
-    (h.kind!=='sweep'||h.ids.some(id=>items.some(i=>i.id===id&&!i.done))));
+  const now=Date.now(), there=id=>items.some(i=>i.id===id&&!i.done);
+  held=held.filter(h=>h&&h.kind!=='held'&&now-h.t<HELD_TTL&&
+    (h.kind!=='doubt'||there(h.id))&&
+    (h.kind!=='swap'||there(h.id))&&
+    (!h.ids||h.ids.some(there)));
   return held[0]||null;
 }
 function reviewAdd(q){
   const fresh={raw:q.label,bases:[],ids:[],t:Date.now()};
   const it=addSpoken(norm(q.label),fresh,null,true);
   if(it) learned[norm(it.name)]=[it.stores.slice(),it.cat,listOf(it)==='parked'?'grocery':listOf(it)];
-  dropReview(q); log('review','added “'+q.label+'” after all');
-  lastUtterance=fresh.ids.length?fresh:null;
+  dropReview(q); log('review','added \u201c'+q.label+'\u201d after all');
+  setLast(fresh.ids.length?fresh:null);
   draw(); save();
 }
 function reviewDismiss(q){ dropReview(q); log('review','left “'+q.label+'” off the list'); draw(); save(); }
