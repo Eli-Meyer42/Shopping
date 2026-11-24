@@ -306,6 +306,18 @@ body.compact .store-head{height:50px;}
   color:var(--ink);line-height:1.25;}
 .vlog{flex:1;overflow-y:auto;margin-top:14px;display:flex;flex-direction:column;gap:7px;}
 .vtype{margin-top:10px;flex:none;}
+/* a question is waiting: the mic steps back to make room for it */
+.voice #hunchbox{flex:none;}
+.voice #hunchbox .hunch{margin-top:4px;}
+.voice.asking .vmid{flex-direction:row;justify-content:flex-start;gap:14px;padding:8px 8px 10px;}
+.voice.asking .vhint{font-size:14.5px;text-align:left;}
+.voice.asking .vpulse{width:44px;height:44px;}
+.voice.asking .vpulse svg{width:20px;height:20px;}
+.voice.asking .vheard{display:none;}
+.micbtn{position:relative;}
+.micbtn .wait{position:absolute;top:-5px;right:-5px;min-width:19px;height:19px;padding:0 5px;border-radius:10px;
+  background:var(--accent);color:#fff;font-size:11.5px;font-weight:700;display:grid;place-items:center;
+  border:2px solid var(--bg);}
 .vitem{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);
   border-radius:12px;padding:11px 13px;font-size:16px;animation:vin .18s ease-out;}
 @keyframes vin{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
@@ -374,7 +386,6 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
   </div>
 </header>
 
-<div class="wrap" id="hunchbox"></div>
 
 <main class="wrap" id="stores"></main>
 
@@ -402,6 +413,7 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
     <p class="vhint" id="v-hint">Listening…</p>
     <p class="vheard" id="v-heard"></p>
   </div>
+  <div id="hunchbox"></div>
   <div class="vlog" id="v-log"></div>
   <div class="add vtype">
     <input id="v-text" placeholder="Or type it" autocomplete="off" enterkeyhint="done" aria-label="Type an item">
@@ -553,7 +565,7 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
        href="https://github.com/Eli-Meyer42/Shopping/deployments">Deploy history</a>
   </div>
 
-  <p class="buildstamp">Build 23 · 24 Nov 2026</p>
+  <p class="buildstamp">Build 24 · 24 Nov 2026</p>
 </div>
 
 <script>
@@ -2133,8 +2145,29 @@ function storeHunch(){
   }
   return null;
 }
+/* Bought at a steady rhythm, and overdue by that rhythm: offer to put it back.
+   Needs three purchases — two gaps — before a rhythm is believed. Turned down,
+   it stays quiet until one more of its usual gaps has gone by. */
+function dueHunch(){
+  let best=null;
+  const now=Date.now();
+  for(const k in bought){
+    const t=bought[k]; if(t.length<3) continue;
+    const every=cadence(k); if(!every||every<1.5) continue;
+    const last=(now-t[t.length-1])/86400000, due=last/every;
+    if(due<1.1) continue;
+    if(items.some(i=>norm(i.name)===k)) continue;            // on a list already, or parked on purpose
+    const id='due|'+k, no=brain.no[id];
+    if(no&&(now-no.t)/86400000<every) continue;
+    if(!best||due>best.due) best={id,kind:'due',key:k,due,ev:t.length,
+      text:'You buy <b>'+esc(cap(k))+'</b> about every '+Math.round(every)+' days. It’s been '+Math.round(last)+'. Add it?',
+      why:'bought '+t.length+' times'};
+  }
+  return best;
+}
 function hunch(){
   const sh=storeHunch(); if(sh) return sh;
+  const dh=dueHunch(); if(dh) return dh;
   for(const s of stores){
     const o=aisleOrder(s.id).filter(c=>items.some(i=>i.stores.includes(s.id)&&!i.done&&i.cat===c)
       || (brain.pairs[s.id]&&Object.keys(brain.pairs[s.id]).some(k=>k.split('>').includes(c))));
@@ -2155,6 +2188,12 @@ function hunch(){
 }
 
 function applyHunch(h){
+  if(h.kind==='due'){
+    addItem(cap(h.key),true);
+    delete brain.no[h.id];
+    log('learned','added '+h.key+' back: usually bought about now (you said yes)');
+    hunchOn=null; draw(); save(); flash('Added '+cap(h.key)+'.'); return;
+  }
   if(h.kind==='store'){
     const names=h.stores.map(i=>store(i).name).join(' and ');
     heads[h.word]=[h.stores.slice(),h.cat,'grocery'];
@@ -2179,17 +2218,28 @@ function applyHunch(h){
 }
 function refuseHunch(h){
   brain.no[h.id]={t:Date.now(),ev:h.ev};
+  if(h.kind==='due'){ log('learned',"didn't take the suggestion: add "+h.key+' back'); hunchOn=null; draw(); save(); return; }
   log('learned',"didn't take the suggestion: "+(h.kind==='store'?'“'+h.word+'” to '+h.stores.map(i=>store(i).name).join('+'):h.cat+' above '+h.above+' at '+store(h.sid).name));
   hunchOn=null; draw(); save();
   flash('Left as it is. It won’t ask again until it sees a good deal more.');
 }
 
+/* Everything the app wants to ask or suggest is shown in the add panel — the
+   place for adding and removing — and never on the shopping page itself, which
+   is for the shop. The mic button carries a small count so nothing waits unseen. */
 function drawHunch(){
   const box=$('hunchbox');
-  if(tab==='history'){ box.innerHTML=''; return; }
+  drawHunchIn(box);
+  $('voice').classList.toggle('asking',!!box.firstChild);
+  const n=held.length+((hunchOn||hunch())?1:0), mic=$('mic');
+  let w=mic.querySelector('.wait');
+  if(n){ if(!w){ w=document.createElement('span'); w.className='wait'; mic.appendChild(w); } w.textContent=n; mic.setAttribute('aria-label','Add by voice — '+n+' question'+(n===1?'':'s')+' waiting'); }
+  else if(w){ w.remove(); mic.setAttribute('aria-label','Add by voice'); }
+}
+function drawHunchIn(box){
   const q=nextReview();
   if(q){ drawReview(box,q); return; }
-  if(tab!=='grocery'){ box.innerHTML=''; return; }
+  if(hunchOn&&hunchOn.kind==='due'&&items.some(i=>norm(i.name)===hunchOn.key)) hunchOn=null;
   if(hunchOn&&hunchOn.kind==='order'){        // already handled some other way?
     const o=aisleOrder(hunchOn.sid);
     if(o.indexOf(hunchOn.cat)<o.indexOf(hunchOn.above)) hunchOn=null;
@@ -2198,8 +2248,8 @@ function drawHunch(){
   if(!h){ box.innerHTML=''; return; }
   box.innerHTML='<div class="hunch"><div class="why">Noticed something</div>'+
     '<p>'+h.text+'<span class="ev">'+esc(h.why)+'</span></p>'+
-    '<div class="ans"><button class="yes" id="h-yes">Yes, do it</button>'+
-    '<button id="h-no">No thanks</button></div></div>';
+    '<div class="ans"><button class="yes" id="h-yes">'+(h.kind==='due'?'Add it':'Yes, do it')+'</button>'+
+    '<button id="h-no">'+(h.kind==='due'?'Not now':'No thanks')+'</button></div></div>';
   $('h-yes').addEventListener('click',()=>applyHunch(h));
   $('h-no').addEventListener('click',()=>refuseHunch(h));
 }
@@ -2853,12 +2903,14 @@ $('v-text').addEventListener('input',()=>{ if(voiceOn){ clearTimeout(quietT); } 
 $('v-text').addEventListener('focus',()=>{ if(voiceOn){ clearTimeout(quietT); } });
 $('v-text').addEventListener('blur',()=>{ if(voiceOn) quiet(); });
 function voiceOpen(){
-  if(!SR){ $('new-name').focus(); flash('This browser has no voice input — type it instead.'); log('voice-unavailable','no SpeechRecognition'); return; }
   voiceOn=true; spoke=0;
   $('v-log').innerHTML='';
   $('v-heard').textContent=''; $('v-text').value='';
   $('v-hint').textContent='Listening… say “done” when finished';
   $('voice').classList.add('on');
+  drawHunch();
+  /* no speech on this browser: the panel still opens, for typing and for the cards */
+  if(!SR){ $('v-pulse').className='vpulse idle'; $('v-hint').textContent='No voice here — type below'; log('voice-open','typing only: no SpeechRecognition'); return; }
   $('v-pulse').className='vpulse live';
   log('voice-open','');
   quiet();
