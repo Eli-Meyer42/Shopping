@@ -1,9 +1,13 @@
-/* Network-first for the page so a deploy shows up immediately,
-   cache-first for icons. The cache only exists to keep the app
-   usable with no signal. */
-const CACHE = 'shopping-v1';
+/* The page: the network gets a short head start so a deploy shows up straight
+   away, but if it hasn't answered in time the saved copy is used. In a shop
+   with one bar of signal, waiting on the network indefinitely is the same as
+   not opening. Everything else — icons, the sync library — is served from the
+   cache, which only changes when the name below does. */
+const CACHE = 'shopping-v2';
 const SHELL = ['./', './index.html', './manifest.webmanifest',
-               './icon-192.png', './icon-512.png'];
+               './icon-192.png', './icon-512.png',
+               './firebase-app-compat.js', './firebase-database-compat.js'];
+const PATIENCE = 2500;   // ms the network gets before the saved page is shown
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -21,21 +25,25 @@ self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  if (url.origin !== self.location.origin) return;   // never touch Firebase or the CDN
+  if (url.origin !== self.location.origin) return;   // never touch Firebase, GitHub or the fonts
 
   const isPage = req.mode === 'navigate' ||
                  (req.headers.get('accept') || '').includes('text/html');
 
   if (isPage) {
-    e.respondWith(
-      fetch(req)
-        .then(res => {
-          const copy = res.clone();
-          caches.open(CACHE).then(c => c.put('./index.html', copy));
-          return res;
-        })
-        .catch(() => caches.match('./index.html').then(r => r || caches.match('./')))
-    );
+    /* an error page from the host must never replace the saved copy */
+    const fresh = fetch(req).then(res => {
+      if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put('./index.html', copy)); }
+      return res;
+    });
+    e.waitUntil(fresh.then(() => {}, () => {}));     // let a slow answer still refresh the cache
+    e.respondWith((async () => {
+      const saved = await caches.match('./index.html') || await caches.match('./');
+      if (!saved) return fresh;                      // first ever visit: nothing to fall back on
+      const late = new Promise(done => setTimeout(() => done(null), PATIENCE));
+      const first = await Promise.race([fresh.catch(() => null), late]);
+      return (first && first.ok) ? first : saved;
+    })());
     return;
   }
 
@@ -43,6 +51,6 @@ self.addEventListener('fetch', e => {
     caches.match(req).then(hit => hit || fetch(req).then(res => {
       if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
       return res;
-    }).catch(() => hit))
+    }))
   );
 });
