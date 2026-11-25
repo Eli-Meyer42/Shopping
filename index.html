@@ -565,10 +565,36 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
        href="https://github.com/Eli-Meyer42/Shopping/deployments">Deploy history</a>
   </div>
 
-  <p class="buildstamp">Build 24 · 24 Nov 2026</p>
+  <p class="buildstamp">Build 25 · 25 Nov 2026</p>
 </div>
 
 <script>
+/* Every build has a number. The newest one this phone has ever run is written
+   down; a copy older than that — an old browser tab brought back to life, a
+   stale page out of the browser's own cache — is not allowed to save, sync or
+   send anything, and goes to fetch the current version instead. On 24 Nov an
+   old Build 20 page did exactly that and wiped the activity log's numbering. */
+const BUILD_N=25, BUILD_KEY='shop-build-n';
+let STALE=false;
+function checkStale(){
+  try{
+    const seen=+localStorage.getItem(BUILD_KEY)||0;
+    if(seen>BUILD_N) STALE=true; else if(seen<BUILD_N) localStorage.setItem(BUILD_KEY,String(BUILD_N));
+  }catch(e){}
+  return STALE;
+}
+checkStale();
+function goFresh(){
+  let tried=0; try{ tried=+sessionStorage.getItem('shop-fresh')||0; sessionStorage.setItem('shop-fresh',String(tried+1)); }catch(e){}
+  const say=m=>{ const d=document.createElement('div');
+    d.style.cssText='position:fixed;inset:0;z-index:999;background:var(--bg,#f1f1ef);color:var(--ink,#222);display:grid;place-items:center;padding:32px;text-align:center;font:600 18px/1.4 system-ui';
+    d.textContent=m; (document.body||document.documentElement).appendChild(d); };
+  if(tried>=2){ say('This is an old copy of the app and the current one could not be loaded. Check the connection, then close this and open the app again.'); return; }
+  say('Loading the current version…');
+  const go=()=>location.replace(location.pathname+'?fresh='+Date.now());
+  try{ caches.keys().then(k=>Promise.all(k.map(x=>caches.delete(x)))).then(go,go); }catch(e){ go(); }
+}
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden&&!STALE&&checkStale()) goFresh(); });
 const KEY='shop-app-2';
 const TICK='<svg viewBox="0 0 20 20" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l4 4 8-9"/></svg>';
 const CARET='<svg class="caret" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l5 5 5-5"/></svg>';
@@ -864,6 +890,7 @@ const STORE=(()=>{
       return mem[k]||null;
     },
     async set(k,v){
+      if(STALE) return true;                       // an old copy never writes
       let ok=false;
       mem[k]=v;
       if(window.storage&&window.storage.set){ try{await window.storage.set(k,v); ok=true;}catch(e){} }
@@ -881,7 +908,7 @@ const STORE=(()=>{
    Never part of the synced state blob: that whole blob is rewritten on every
    save, so a log inside it would re-upload itself on every tap. It is stored
    compactly here, and mirrored to the cloud as an append-only node instead. */
-const LOG_KEY='shop-log-1', DEV_KEY='shop-dev-1', LOG_MAX=12000;
+const LOG_KEY='shop-log-2', LOG_KEY_OLD='shop-log-1', DEV_KEY='shop-dev-1', LOG_MAX=12000;
 let actlog=[], logT=null, devId='';
 /* Every entry has a number that only ever goes up, for the life of this device:
    entry number n sits at position n-logBase. Sending goes by number, so nothing
@@ -1039,7 +1066,7 @@ function watchTyping(id){
   });
 }
 async function loadLog(){
-  try{ const r=await STORE.get(LOG_KEY); if(r) actlog=unpackLog(r); }catch(e){ actlog=[]; }
+  try{ const r=(await STORE.get(LOG_KEY))||(await STORE.get(LOG_KEY_OLD)); if(r) actlog=unpackLog(r); }catch(e){ actlog=[]; }
   try{ devId=(await STORE.get(DEV_KEY))||''; }catch(e){}
   if(!devId){ devId='d'+Math.random().toString(36).slice(2,7);
     try{ await STORE.set(DEV_KEY,devId); }catch(e){} }
@@ -1049,7 +1076,7 @@ async function loadLog(){
    and a dated copy of the whole list. The token lives in its own storage key:
    never in this file, which is public, and never in the synced copy of the list. */
 const GH_KEY='shop-gh-1', GH_REPO_KEY='shop-ghrepo-1', GH_SENT_KEY='shop-ghsent-1',
-      GH_AUTO_KEY='shop-ghauto-1', GH_META_KEY='shop-ghmeta-1';
+      GH_AUTO_KEY='shop-ghauto-1', GH_META_KEY='shop-ghmeta-2', GH_META_OLD='shop-ghmeta-1';
 let ghTok='', ghRepo='Eli-Meyer42/shopping-logs', ghAuto=false, ghState='Not set up.';
 /* n: number of the next log entry to send · okAt/fails/err: how sending is going
    snapDay/snapAt: the last backup · expires: when GitHub says the token runs out */
@@ -1062,14 +1089,36 @@ async function loadGh(){
   try{ ghRepo=(await STORE.get(GH_REPO_KEY))||ghRepo; }catch(e){}
   try{ ghAuto=(await STORE.get(GH_AUTO_KEY))==='1'; }catch(e){}
   try{
-    const m=JSON.parse((await STORE.get(GH_META_KEY))||'null');
+    const m=JSON.parse((await STORE.get(GH_META_KEY))||(await STORE.get(GH_META_OLD))||'null');
     if(m) Object.assign(ghMeta,m);
     else {                                   // first run with numbered entries: carry the old time marker over
       const t=+((await STORE.get(GH_SENT_KEY))||0)||0;
       ghMeta.n=logBase+actlog.filter(e=>e.t<=t).length; ghMeta.okAt=t;
     }
   }catch(e){}
+  mendNumbers();
   ghSummary(); health();
+}
+/* The numbers must agree with what has been sent. If the log on this phone was
+   replaced (an old copy of the app did that once), its entries start again
+   from zero while the marker says hundreds have gone — and then nothing is
+   sent at all, silently, until the count catches up. Everything written after
+   the last successful send is unsent, so that is where the numbers resume. */
+function mendNumbers(){
+  if(!ghMeta.n) return;
+  /* lastT is the time on the last entry that reached GitHub. Builds before 25
+     didn't keep it; for this phone it is known from the repo itself (#721). */
+  if(!ghMeta.lastT&&devId==='dp3a4t'&&ghMeta.n===722) ghMeta.lastT=1795561761617;
+  const at=ghMeta.n-1-logBase, lastSent=actlog[at];
+  const short=logBase+actlog.length<ghMeta.n, wrong=!!(lastSent&&ghMeta.lastT&&lastSent.t!==ghMeta.lastT);
+  if(!short&&!wrong) return;
+  const cut=ghMeta.lastT||0;                         // unknown: then everything here counts as unsent
+  const k=actlog.filter(e=>e.t<=cut).length, was=logBase;
+  if(k>ghMeta.n){ actlog=actlog.slice(k-ghMeta.n); logBase=0; } else logBase=ghMeta.n-k;
+  const n=actlog.length-(ghMeta.n-logBase);
+  log('log-mend','the log on this phone had been replaced and its numbering restarted (from #'+was+'); '+
+    'renumbered so the '+n+' unsent entr'+(n===1?'y':'ies')+' follow on from #'+ghMeta.n);
+  flushLog();
 }
 const b64=s=>{let o=''; new TextEncoder().encode(s).forEach(c=>o+=String.fromCharCode(c)); return btoa(o);};
 const unsent=()=>actlog.slice(Math.max(0,ghMeta.n-logBase));
@@ -1110,6 +1159,7 @@ const whyNot=st=>st+(st===404?' — repo name wrong, or the token can’t see it
    before noting it, the retry finds the file already there, reads how far it
    went, and carries on from the entry after — nothing twice, nothing skipped. */
 async function sendLog(manual,keepalive){
+  if(STALE) return;
   if(!ghTok){ if(manual) flash('Paste a GitHub token in settings first.'); return; }
   if(ghBusy){ if(manual) flash('Already sending.'); return; }
   const lost=Math.max(0,logBase-ghMeta.n);          // dropped off the end of the log before they could be sent
@@ -1134,15 +1184,22 @@ async function sendLog(manual,keepalive){
   try{
     const r=await ghPut(path,body,'log: entries '+from+'–'+to+' from '+devId,keepalive);
     if(r.ok){
-      ghMeta.n=to+1; ghWorked();
+      ghMeta.n=to+1; ghMeta.lastT=batch[batch.length-1].t; ghWorked();
       log('send','entries #'+from+'–#'+to+(lost?' ('+lost+' older ones were lost before sending)':''));
       again=more&&!keepalive;
       if(manual&&!again) flash('Sent. Claude can read it now.');
     } else if(r.status===422&&!keepalive){
       /* already there from an earlier try: see how far that one reached */
       const have=await ghGet(path).then(x=>x.ok?x.json():null).catch(()=>null);
-      if(have&&typeof have.to==='number'&&have.to>=from){
-        ghMeta.n=have.to+1; ghWorked();
+      const ours=have&&Array.isArray(have.entries)&&have.entries[0]&&have.entries[0][0]===batch[0].t;
+      if(have&&!ours&&!sendLog.dodge){
+        /* something else is sitting at that number (an old copy of the app wrote it):
+           never skip real entries for it — send these beside it instead */
+        const r2=await ghPut(path.replace(/\.json$/,'-'+batch[0].t+'.json'),body,'log: entries '+from+'–'+to+' from '+devId+' (beside a clash)',false);
+        if(r2.ok){ ghMeta.n=to+1; ghMeta.lastT=batch[batch.length-1].t; ghWorked(); log('send','entries #'+from+'–#'+to+' (a different file was already at that number; sent beside it)'); again=more; }
+        else { ghFailed('422 — a file is in the way'); log('send-fail','422 at '+path+', and '+r2.status+' beside it'); }
+      } else if(have&&typeof have.to==='number'&&have.to>=from){
+        ghMeta.n=have.to+1; ghMeta.lastT=(actlog[have.to-logBase]||{}).t||0; ghWorked();
         log('send','entries #'+from+'–#'+have.to+' were already on GitHub; carrying on from #'+(have.to+1));
         again=ghMeta.n-logBase<actlog.length;
       } else { ghFailed('422 — a file is in the way'); log('send-fail','422 at '+path); }
@@ -1252,6 +1309,8 @@ function health(){
       m='History and backups are not reaching GitHub: '+ghMeta.err+'. Settings → History and backups → paste a new token.';
     else if(ghMeta.fails>=3&&ghMeta.okAt&&Date.now()-ghMeta.okAt>3*86400000)
       m='History and backups have not reached GitHub since '+when(ghMeta.okAt)+'.';
+    else if(ghMeta.n&&logBase+actlog.length<ghMeta.n)
+      m='The activity log on this phone is out of step with what was sent. Reopen the app; if this stays, tell Claude.';
     const x=ghMeta.expires?Date.parse(ghMeta.expires.replace(' UTC','Z').replace(' ','T')):NaN;
     if(!m&&!isNaN(x)){
       const days=Math.ceil((x-Date.now())/86400000);
@@ -1602,6 +1661,7 @@ function firstSync(d){
 }
 
 function cloudPush(){
+  if(STALE) return;
   cloudDirty=true;
   if(!cloudRef||unsyncedFrom||!cloudLive) return;    // not connected, or not yet caught up: it goes when we are
   clearTimeout(pushT);
@@ -1670,6 +1730,7 @@ function startSync(){
 }
 
 async function load(){
+  if(STALE){ goFresh(); return; }
   let had=false;
   try{
     const raw=await STORE.get(KEY);

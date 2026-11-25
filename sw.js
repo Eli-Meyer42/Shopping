@@ -3,7 +3,7 @@
    with one bar of signal, waiting on the network indefinitely is the same as
    not opening. Everything else — icons, the sync library — is served from the
    cache, which only changes when the name below does. */
-const CACHE = 'shopping-v2';
+const CACHE = 'shopping-v3';
 const SHELL = ['./', './index.html', './manifest.webmanifest',
                './icon-192.png', './icon-512.png',
                './firebase-app-compat.js', './firebase-database-compat.js'];
@@ -32,7 +32,13 @@ self.addEventListener('fetch', e => {
 
   if (isPage) {
     /* an error page from the host must never replace the saved copy */
-    const fresh = fetch(req).then(res => {
+    /* Asked for with the browser's own cache switched off: a restored tab can
+       otherwise be handed a days-old page from that cache, which then gets
+       saved here as if it were new. (A redirected answer can't be used for a
+       page load, so that rare case goes the ordinary way.) */
+    const fresh = fetch(url.href, { cache: 'no-store', credentials: 'same-origin' })
+      .then(res => res.redirected ? fetch(req) : res)
+      .then(res => {
       if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put('./index.html', copy)); }
       return res;
     });
