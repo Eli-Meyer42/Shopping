@@ -565,7 +565,7 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
        href="https://github.com/Eli-Meyer42/Shopping/deployments">Deploy history</a>
   </div>
 
-  <p class="buildstamp">Build 25 · 25 Nov 2026</p>
+  <p class="buildstamp">Build 26 · 25 Nov 2026</p>
 </div>
 
 <script>
@@ -574,7 +574,7 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
    stale page out of the browser's own cache — is not allowed to save, sync or
    send anything, and goes to fetch the current version instead. On 24 Nov an
    old Build 20 page did exactly that and wiped the activity log's numbering. */
-const BUILD_N=25, BUILD_KEY='shop-build-n';
+const BUILD_N=26, BUILD_KEY='shop-build-n';
 let STALE=false;
 function checkStale(){
   try{
@@ -1628,13 +1628,15 @@ function tidied(){
    dated now so they beat whatever is out there, and anything not in it is
    marked deleted rather than left to drift back in. */
 function adoptBackup(d,from){
-  const before=items.map(i=>i.id);
+  const before=items.map(i=>i.id), wasGone=gone;
   if(!applyState(d)) throw new Error('not a list');
   unsyncedFrom=0; seedStash=null;
   for(const k in PATCHES) patches[k]=1;            // taken as it is: no one-off migrations on top
   const now=Date.now(), here={};
   items.forEach(i=>{ i.u=now; here[i.id]=1; });
-  gone={}; before.forEach(id=>{ if(!here[id]) gone[id]=now; });
+  /* deletions made before this stay deletions: a device that was away must not bring those items back */
+  gone={}; for(const id in wasGone){ if(!here[id]) gone[id]=wasGone[id]; }
+  before.forEach(id=>{ if(!here[id]) gone[id]=now; });
   fu={}; FIELDS.forEach(f=>{ fu[f]=now; });
   reshadow();
   log('backup','restored '+items.length+' items from '+from);
