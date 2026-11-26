@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#EDEFEE">
+<meta name="theme-color" content="#E3ECF5">
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
@@ -153,6 +153,10 @@
   .toast button{flex:none;font:inherit;font-weight:700;color:#fff;background:rgba(255,255,255,.18);border:none;border-radius:9px;padding:7px 12px;cursor:pointer;}
   @media (prefers-reduced-motion:reduce){ .toast{transition:none;} }
   .mainadd{display:none;}
+  .noterow{padding:10px 0;border-top:1px solid var(--hair);font-size:15.5px;line-height:1.4;}
+  .noterow:first-child{border-top:none;}
+  .noterow .when{display:block;font-size:12.5px;color:var(--faint);margin-bottom:2px;}
+  .naps .when{margin-left:10px;font-size:12.5px;font-weight:400;color:var(--faint);}
   .acts{display:flex;gap:8px;margin:10px 0 12px;}
   .acts .btn{flex:1;padding:11px 6px;font-size:15px;}
   .mvg>summary .val{margin-left:auto;margin-right:10px;font-weight:500;color:var(--soft);font-size:14.5px;
@@ -426,11 +430,16 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
 @font-face{font-family:'DM Sans';font-weight:500;font-display:swap;src:url(fonts/dm-sans-latin-500-normal.woff2) format('woff2');}
 @font-face{font-family:'DM Sans';font-weight:600;font-display:swap;src:url(fonts/dm-sans-latin-600-normal.woff2) format('woff2');}
 @font-face{font-family:'DM Sans';font-weight:700;font-display:swap;src:url(fonts/dm-sans-latin-700-normal.woff2) format('woff2');}
-:root{--bg:#FAF9F6;--surface:#fff;--ink:#1F2421;--soft:#6B726E;--faint:#A7ADA9;--line:#E9E7E1;--hair:#F1EFEA;--accent:#1F2421;--tile:#F4F2EC;
+:root{--bg:#EAF0F5;--surface:#fff;--ink:#1F2421;--soft:#6B726E;--faint:#A7ADA9;--line:#E9E7E1;--hair:#F1EFEA;--accent:#1F2421;--tile:#F4F2EC;
   --display:'Bricolage Grotesque','DM Sans',system-ui,sans-serif;--sign:'Barlow Condensed','Bricolage Grotesque',system-ui,sans-serif;}
 body{font-family:'DM Sans',system-ui,sans-serif;}
 h1,h2,.sheet h3{font-family:var(--display);font-weight:700;letter-spacing:-.025em;}
-header{background:var(--bg);}
+/* the page: a soft morning sky, cool at the top and warming toward the bottom,
+   so the white and colour-washed cards have something to sit on */
+html{background:#EAF0F5;}
+body{background:linear-gradient(180deg,#E3ECF5 0%,#ECF0F1 46%,#F7F0E6 100%) fixed;min-height:100vh;}
+header{background:rgba(228,236,245,.82);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);}
+.voice{background:linear-gradient(180deg,#E3ECF5 0%,#F3F1EC 100%);}
 header h1{font-size:30px;}
 .bar .micbtn{background:var(--ink);border-color:var(--ink);border-radius:18px;font-family:var(--display);font-size:18px;font-weight:600;
   padding:15px 8px;box-shadow:0 6px 18px rgba(31,36,33,.16);}
@@ -685,6 +694,11 @@ body.compact .store-head{height:52px;}
     </div>
   </details>
 
+  <details class="grp"><summary>Notes<span class="val" id="notes-n" style="margin-left:auto;margin-right:10px;font-weight:500;color:var(--soft);font-size:14.5px"></span></summary>
+    <p style="margin-bottom:9px">Everything you said or typed as a note, newest first. Claude reads these in the history.</p>
+    <div id="notes-list"></div>
+  </details>
+
   <details class="grp"><summary>What it's learned</summary>
     <p style="margin-bottom:9px" id="brainnote">Nothing yet.</p>
     <div class="stack">
@@ -710,7 +724,7 @@ body.compact .store-head{height:52px;}
     </div>
   </details>
 
-  <p class="buildstamp">Build 31 · 26 Nov 2026</p>
+  <p class="buildstamp">Build 32 · 26 Nov 2026</p>
 </div>
 
 <script>
@@ -719,7 +733,7 @@ body.compact .store-head{height:52px;}
    stale page out of the browser's own cache — is not allowed to save, sync or
    send anything, and goes to fetch the current version instead. On 24 Nov an
    old Build 20 page did exactly that and wiped the activity log's numbering. */
-const BUILD_N=31, BUILD_KEY='shop-build-n';
+const BUILD_N=32, BUILD_KEY='shop-build-n';
 let STALE=false;
 function checkStale(){
   try{
@@ -1779,10 +1793,13 @@ function onCloud(d){
   const before=listFace();
   applyState(m.state);
   STORE.set(KEY,JSON.stringify(snap()));
+  /* always redrawn: the merge makes new copies of every item, and a row still
+     on screen from before would be holding the old one — a tap on it would
+     change something that is no longer the list */
+  draw();
   if(m.took){
     const what=faceDiff(before,listFace());
     log('cloud-in',what?'from the cloud: '+what:'took settings or lessons from the cloud; the list itself is unchanged');
-    draw();
     if(what) flash('Updated from your other device: '+what+'.');
   }
   if(m.gave){
@@ -2342,8 +2359,10 @@ function drawSnoozed(host){
   const body=document.createElement('div'); body.className='naps';
   nap.forEach(it=>{
     const r=document.createElement('div'); r.className='row';
-    r.innerHTML='<button class="tick" style="color:var(--faint)"><span class="label">'+esc(it.name)+'</span></button>';
-    r.querySelector('.tick').addEventListener('click',()=>{it.snoozed=false;log('wake',it.name+' (tapped in the snoozed section)');draw();save();flash('“'+it.name+'” is back on the list.');});
+    const left=it.napDue?(it.napDue-Date.now())/DAY:null;
+    r.innerHTML='<button class="tick" style="color:var(--faint)"><span class="label">'+esc(it.name)+
+      (left===null?'':'<span class="when">'+(left<=0?'asking now':left<1?'asks after this shop':'asks '+fmtDays(left))+'</span>')+'</span></button>';
+    r.querySelector('.tick').addEventListener('click',()=>{napWoke(it,'tapped in the snoozed section');draw();save();flash('“'+it.name+'” is back on the list.');});
     const pk=document.createElement('button');
     pk.className='nap'; pk.style.width='32px'; pk.innerHTML=PARK;
     pk.setAttribute('aria-label','Park '+it.name);
@@ -2358,7 +2377,7 @@ function drawSnoozed(host){
   });
   const all=document.createElement('div'); all.className='row';
   all.innerHTML='<button class="tick" style="color:var(--soft);font-weight:600"><span class="label">Wake all '+nap.length+'</span></button>';
-  all.querySelector('.tick').addEventListener('click',()=>{nap.forEach(i=>i.snoozed=false);log('wake','all '+nap.length+' snoozed items');draw();save();});
+  all.querySelector('.tick').addEventListener('click',()=>{nap.forEach(i=>napWoke(i,'woke all'));draw();save();});
   body.appendChild(all);
   wrap.appendChild(body); host.appendChild(wrap);
 }
@@ -2465,6 +2484,7 @@ function dueHunch(){
 }
 function hunch(){
   const sh=storeHunch(); if(sh) return sh;
+  const nh=napHunch(); if(nh) return nh;
   const dh=dueHunch(); if(dh) return dh;
   for(const s of stores){
     const o=aisleOrder(s.id).filter(c=>items.some(i=>i.stores.includes(s.id)&&!i.done&&i.cat===c)
@@ -2585,8 +2605,18 @@ function drawHunchIn(box){
     const o=aisleOrder(hunchOn.sid);
     if(o.indexOf(hunchOn.cat)<o.indexOf(hunchOn.above)) hunchOn=null;
   }
+  if(hunchOn&&hunchOn.kind==='nap'&&!items.some(i=>i.id===hunchOn.item&&i.snoozed&&(i.napDue||0)<=Date.now())) hunchOn=null;
   const h=hunchOn||(hunchOn=hunch());
   if(!h){ box.innerHTML=''; return; }
+  if(h.kind==='nap'){
+    box.innerHTML='<div class="hunch"><div class="why">Snoozed</div>'+
+      '<p>'+h.text+'<span class="ev">'+esc(h.why)+'</span></p>'+
+      '<div class="ans"><button class="yes" id="n-yes">Bring it back</button><button id="n-no">Not yet</button><button id="n-long">Not for a while</button></div></div>';
+    $('n-yes').addEventListener('click',()=>napAnswer(h,'yes'));
+    $('n-no').addEventListener('click',()=>napAnswer(h,'no'));
+    $('n-long').addEventListener('click',()=>napAnswer(h,'long'));
+    return;
+  }
   box.innerHTML='<div class="hunch"><div class="why">Noticed something</div>'+
     '<p>'+h.text+'<span class="ev">'+esc(h.why)+'</span></p>'+
     '<div class="ans"><button class="yes" id="h-yes">'+(h.kind==='due'?'Add it':'Yes, do it')+'</button>'+
@@ -2729,6 +2759,9 @@ function autoCart(){
   if(done.some(i=>now-(i.u||0)<CART_STALE)) return false;
   let kept=0;
   done.forEach(i=>{ const k=norm(i.name); if(!bought[k]&&knownThing(i.name)&&!looksSpoken(i.name,false)){ bought[k]=[i.u||now]; kept++; } });
+  /* the shop is over: anything snoozed before its last tick was snoozed for that shop */
+  const lastTick=Math.max.apply(null,done.map(i=>i.u||0));
+  items.forEach(i=>{ if(i.snoozed&&i.napAt&&i.napAt<=lastTick&&!(i.napNo||i.napLong)&&i.napDue>now) i.napDue=now; });
   items=items.filter(i=>!i.done);
   log('auto-cart','emptied the cart: '+done.length+' bought more than six hours ago ('+done.map(i=>i.name).join(', ').slice(0,300)+')');
   draw(); save();
@@ -2765,6 +2798,7 @@ function fixUps22(){
 /* plain-English readout of the conclusions, for settings and the log export */
 function brainText(){
   const out=[];
+  if(brain.nap) out.push('Snoozed items: I first ask again after '+brain.nap.small+' days for “not yet” and '+brain.nap.long+' days for “not for a while”, each wait half as long again as the last.');
   stores.forEach(s=>{
     const p=brain.pairs[s.id]; if(!p) return;
     const top=Object.entries(p).filter(([,n])=>n>=MIN_EV).sort((a,b)=>b[1]-a[1]).slice(0,6);
@@ -2975,24 +3009,75 @@ $('mv-ais-save').addEventListener('click',()=>{
 });
 $('mv-ais-name').addEventListener('keydown',e=>{if(e.key==='Enter')$('mv-ais-save').click();});
 
-const PARK_AT=3;
-function snoozeItem(it,row){
+/* Snoozing takes a thing off the list for this shop. Nothing snoozed is ever
+   forgotten: once the shop is over the add page asks whether to bring it
+   back. "Not yet" asks again a little later, and a little later still each
+   time; "Not for a while" does the same with longer waits. The two starting
+   waits aren't fixed — they move with how he actually answers, and every
+   answer is logged with the numbers so the rule can be judged later:
+     · he brings something back himself before being asked → I ask sooner
+     · he says "not yet" → I was early, so I wait a bit longer next time
+     · he says "not for a while" → the long wait grows a little too          */
+const DAY=86400000;
+const NAPCFG={small:2,long:7,grow:1.5,sMin:1,sMax:6,lMin:4,lMax:30,cap:75};   // days
+function napCfg(){ const n=brain.nap=brain.nap||{}; if(!n.small) n.small=NAPCFG.small; if(!n.long) n.long=NAPCFG.long; return n; }
+const fmtDays=d=>d<1.5?'tomorrow':'in '+Math.round(d)+' days';
+function snoozeItem(it0,row){
   const go=()=>{
+    const it=items.find(i=>i.id===it0.id); if(!it) return;        // the item as it is now, not as it was when the row was drawn
     it.snoozes=(it.snoozes||0)+1;
-    let msg;
-    if(it.snoozes>=PARK_AT && listOf(it)!=='parked'){
-      it.home=listOf(it); it.list='parked'; it.snoozed=false;
-      msg='“'+it.name+'” snoozed '+it.snoozes+' times — moved to Parked.';
-    } else {
-      it.snoozed=true;
-      msg='“'+it.name+'” snoozed'+(it.snoozes>1?' ('+it.snoozes+'×)':'')+
-        ' — '+(PARK_AT-it.snoozes)+' more and it gets parked.';
-    }
-    draw(); save(); log('snooze',it.name+' x'+it.snoozes+(listOf(it)==='parked'?' -> parked':'')); flash(msg);
+    it.snoozed=true; it.napAt=Date.now(); it.napDue=it.napAt+DAY; it.napNo=0; it.napLong=0;
+    draw(); save(); log('snooze',it.name+' · off the list for this shop; will ask about it after the shop, or tomorrow');
+    flash('Snoozed '+it.name+' for this shop. I’ll ask about it afterwards.',()=>{ const x=items.find(i=>i.id===it.id); if(!x) return; x.snoozed=false; delete x.napDue; log('undo','un-snoozed '+x.name); draw(); save(); });
   };
   if(row&&!matchMedia('(prefers-reduced-motion: reduce)').matches){
     row.classList.add('leaving'); setTimeout(go,160);
   } else go();
+}
+/* brought back by hand (tapped in the snoozed section, or added again) */
+function napWoke(it,how){
+  const c=napCfg(), early=it.napDue&&Date.now()<it.napDue-3600000&&(it.napNo||it.napLong);
+  if(early){ const was=c.small; c.small=Math.max(NAPCFG.sMin,+(c.small*0.85).toFixed(2));
+    log('nap-learn','brought '+it.name+' back '+secs(it.napDue-Date.now())+' before I would have asked → asking sooner from now on: first wait '+was+' → '+c.small+' days'); }
+  it.snoozed=false; delete it.napDue; delete it.napAt; delete it.napNo; delete it.napLong;
+  log('wake',it.name+' ('+how+')');
+}
+function napHunch(){
+  const now=Date.now(); let ch=false;
+  const naps=items.filter(i=>i.snoozed&&!i.done&&listOf(i)!=='parked');
+  naps.forEach(i=>{ if(!i.napDue){ i.napAt=i.napAt||now; i.napDue=now+DAY; ch=true; } });   // snoozed before this existed: ask tomorrow
+  if(ch) setTimeout(save,0);
+  const due=naps.filter(i=>i.napDue<=now).sort((a,b)=>a.napDue-b.napDue);
+  if(!due.length) return null;
+  const it=due[0], days=Math.max(0,Math.round((now-(it.napAt||now))/DAY)), n=(it.napNo||0)+(it.napLong||0);
+  return {id:'nap|'+it.id,kind:'nap',item:it.id,ev:1,more:due.length-1,
+    text:'<b>'+esc(it.name)+'</b> was snoozed '+(days<1?'earlier':days===1?'yesterday':days+' days ago')+'. Bring it back?',
+    why:(n?'You’ve said no '+n+' time'+(n===1?'':'s')+' so far':'Off the list since you snoozed it')+(due.length>1?' · '+(due.length-1)+' more after this':'')};
+}
+function napAnswer(h,ans){
+  const it=items.find(i=>i.id===h.item); hunchOn=null;
+  if(!it){ draw(); return; }
+  const c=napCfg();
+  if(ans==='yes'){
+    it.snoozed=false; const waited=it.napAt?((Date.now()-it.napAt)/DAY>=2?Math.round((Date.now()-it.napAt)/DAY)+' days':secs(Date.now()-it.napAt)):'?';
+    delete it.napDue; delete it.napAt; delete it.napNo; delete it.napLong;
+    log('nap-answer',it.name+' → brought back, after '+waited+' snoozed');
+    draw(); save(); flash(it.name+' is back on the list.'); return;
+  }
+  let wait;
+  if(ans==='no'){
+    wait=Math.min(NAPCFG.cap,c.small*Math.pow(NAPCFG.grow,it.napNo||0)); it.napNo=(it.napNo||0)+1;
+    const was=c.small; c.small=Math.min(NAPCFG.sMax,+(c.small*1.08).toFixed(2));
+    log('nap-answer',it.name+' → not yet (no. '+it.napNo+'): asking again in '+wait.toFixed(1)+' days');
+    log('nap-learn','“not yet” means I asked a little early → first wait '+was+' → '+c.small+' days');
+  } else {
+    wait=Math.min(NAPCFG.cap,c.long*Math.pow(NAPCFG.grow,it.napLong||0)); it.napLong=(it.napLong||0)+1;
+    const was=c.long; c.long=Math.min(NAPCFG.lMax,+(c.long*1.06).toFixed(2));
+    log('nap-answer',it.name+' → not for a while (no. '+it.napLong+'): asking again in '+wait.toFixed(1)+' days');
+    log('nap-learn','long wait '+was+' → '+c.long+' days');
+  }
+  it.napDue=Date.now()+wait*DAY;
+  draw(); save(); flash('OK. I’ll ask about '+it.name+' again '+fmtDays(wait)+'.');
 }
 $('mv-snooze').addEventListener('click',()=>{
   const it=items.find(x=>x.id===mvId); if(!it) return;
@@ -3107,7 +3192,16 @@ function drawSetTop(){
     box.querySelector('.stack').appendChild(b);
   });
 }
-function openSettings(){ drawRoute(); wipeDisarm(); drawSetTop(); document.querySelectorAll('#sheet-set details.grp').forEach(d=>{ d.open=false; }); show('sheet-set'); }
+function drawNotes(){
+  const ns=actlog.filter(e=>e.k==='NOTE').reverse();
+  $('notes-n').textContent=ns.length||'';
+  const day=t=>{ const d=new Date(t), now=new Date(), y=new Date(now-86400000);
+    const hm=d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+    return (d.toDateString()===now.toDateString()?'Today':d.toDateString()===y.toDateString()?'Yesterday':d.toLocaleDateString([], {weekday:'short',day:'numeric',month:'short'}))+', '+hm; };
+  $('notes-list').innerHTML=ns.length?ns.map(e=>'<div class="noterow"><span class="when">'+esc(day(e.t))+'</span>'+esc(String(e.d).replace(/\s*\((?:said without “note”|typed|heard as “no …”|[^()]*)\)\s*$/,''))+'</div>').join('')
+    :'<p>No notes yet. Say or type “note …” on the add page.</p>';
+}
+function openSettings(){ drawRoute(); wipeDisarm(); drawSetTop(); drawNotes(); document.querySelectorAll('#sheet-set details.grp').forEach(d=>{ d.open=false; }); show('sheet-set'); }
 $('gear').addEventListener('click',openSettings);
 $('open-import').addEventListener('click',()=>{$('paste').value='';$('warn').style.display='none';pendingNote=null;show('sheet-import');});
 
