@@ -9,10 +9,6 @@
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>Shopping</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<!-- loaded without blocking: on a weak signal the list still draws at once, in the fallback font -->
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <style>
   :root{
     --bg:#E9ECE7; --surface:#FFF; --ink:#1B2621; --soft:#6E7C75; --faint:#9BA8A1;
@@ -414,6 +410,81 @@ body.focused .store{margin-top:8px;}
 body.focused .store-head{display:none;}      /* the blue bar is the header now */
 .sheet{border-radius:24px 24px 0 0;}
 
+
+/* ===== the look, 26 Nov 2026 =====
+   Each store is its own colour-washed card under a solid band of its colour,
+   like the sign over a supermarket aisle. The colour does the organising: it
+   is on the band, the checkboxes, the aisle names and the numbers, so it is
+   always clear whose list a row belongs to. Type is three faces with one job
+   each — Barlow Condensed for the store signs, Bricolage Grotesque for
+   headings and buttons, DM Sans for everything read. All kept in the repo. */
+@font-face{font-family:'Barlow Condensed';font-weight:600;font-display:swap;src:url(fonts/barlow-condensed-latin-600-normal.woff2) format('woff2');}
+@font-face{font-family:'Barlow Condensed';font-weight:700;font-display:swap;src:url(fonts/barlow-condensed-latin-700-normal.woff2) format('woff2');}
+@font-face{font-family:'Bricolage Grotesque';font-weight:600;font-display:swap;src:url(fonts/bricolage-grotesque-latin-600-normal.woff2) format('woff2');}
+@font-face{font-family:'Bricolage Grotesque';font-weight:700;font-display:swap;src:url(fonts/bricolage-grotesque-latin-700-normal.woff2) format('woff2');}
+@font-face{font-family:'DM Sans';font-weight:400;font-display:swap;src:url(fonts/dm-sans-latin-400-normal.woff2) format('woff2');}
+@font-face{font-family:'DM Sans';font-weight:500;font-display:swap;src:url(fonts/dm-sans-latin-500-normal.woff2) format('woff2');}
+@font-face{font-family:'DM Sans';font-weight:600;font-display:swap;src:url(fonts/dm-sans-latin-600-normal.woff2) format('woff2');}
+@font-face{font-family:'DM Sans';font-weight:700;font-display:swap;src:url(fonts/dm-sans-latin-700-normal.woff2) format('woff2');}
+:root{--bg:#FAF9F6;--surface:#fff;--ink:#1F2421;--soft:#6B726E;--faint:#A7ADA9;--line:#E9E7E1;--hair:#F1EFEA;--accent:#1F2421;--tile:#F4F2EC;
+  --display:'Bricolage Grotesque','DM Sans',system-ui,sans-serif;--sign:'Barlow Condensed','Bricolage Grotesque',system-ui,sans-serif;}
+body{font-family:'DM Sans',system-ui,sans-serif;}
+h1,h2,.sheet h3{font-family:var(--display);font-weight:700;letter-spacing:-.025em;}
+header{background:var(--bg);}
+header h1{font-size:30px;}
+.bar .micbtn{background:var(--ink);border-color:var(--ink);border-radius:18px;font-family:var(--display);font-size:18px;font-weight:600;
+  padding:15px 8px;box-shadow:0 6px 18px rgba(31,36,33,.16);}
+.bar .micbtn .wait{color:var(--ink);}
+.tabs{background:none;padding:0;gap:6px;margin-top:12px;}
+.tabs button{border:1.5px solid var(--line);border-radius:999px;background:var(--surface);font-weight:600;padding:8px 6px;}
+.tabs button.cur{background:var(--ink);border-color:var(--ink);color:#fff;box-shadow:none;}
+.tabs button.cur em{color:rgba(255,255,255,.65);}
+
+/* the store card */
+.store{background:color-mix(in srgb,var(--store) 8%,#fff);border-radius:22px;box-shadow:none;
+  border:1.5px solid color-mix(in srgb,var(--store) 18%,#fff);}
+.store::before{display:none;}
+.store-head{background:var(--store);height:56px;padding:0 10px 0 18px;gap:9px;}
+body.compact .store-head{height:52px;}
+.store-head h2,.store-head h2.tight{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-family:var(--sign);font-weight:700;font-size:27px;letter-spacing:.03em;text-transform:uppercase;color:#fff;}
+.store-head .grow{flex:none;}
+.store-head .num{min-width:26px;height:26px;padding:0 8px;border-radius:999px;display:inline-grid;place-items:center;
+  background:rgba(255,255,255,.2);color:#fff;font-weight:700;font-size:13.5px;}
+.store-head .nap{background:rgba(255,255,255,.18);color:#fff;border-radius:10px;}
+.store-head .caret,.aisle-head .caret{display:none;}       /* the whole line folds it: the arrow said nothing more */
+.store.closed{border-color:var(--store);}
+.shopbtn{margin:0;background:#fff;color:color-mix(in srgb,var(--store) 88%,#000);box-shadow:none;transform:none;border-radius:10px;height:36px;
+  font-family:var(--sign);font-size:19px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:0 14px 0 11px;}
+.shopbtn:active{transform:scale(.96);box-shadow:none;}
+.aisle-head{padding:13px 12px 0 18px;}
+.aisle-head span.nm{font-size:13px;font-weight:700;color:color-mix(in srgb,var(--store) 72%,#000);}
+.aisle-head.closed span.nm{color:color-mix(in srgb,var(--store) 40%,#999);}
+.aisle-head .num{color:color-mix(in srgb,var(--store) 45%,#999);}
+.store .row{padding:0 10px 0 18px;}
+.store .row + .row::before{left:56px;right:14px;background:color-mix(in srgb,var(--store) 15%,transparent);}
+.store .box{width:25px;height:25px;border-radius:50%;border:2px solid var(--store);background:#fff;}
+.box{width:25px;height:25px;border-radius:50%;}
+.label{font-weight:500;font-size:var(--name);}
+.store .nap,.store .rowbtn{background:none;color:color-mix(in srgb,var(--store) 55%,#888);width:34px;}
+.store .store-head .nap{background:rgba(255,255,255,.18);color:#fff;width:36px;}
+.store .rowbtn.trash{color:color-mix(in srgb,var(--warn) 78%,#bbb);}
+.ano{border-radius:999px;}
+.store .ano.sure{background:var(--store);color:#fff;}
+.store .ano.guess{border-color:color-mix(in srgb,var(--store) 50%,#fff);color:color-mix(in srgb,var(--store) 85%,#000);}
+.store .row.fresh .label::after{color:color-mix(in srgb,var(--store) 85%,#000);}
+.store .arrange,.store .body>button:last-child{color:color-mix(in srgb,var(--store) 50%,#999);}
+
+/* everything else takes the same shapes */
+.btn{border-radius:14px;}
+.sheet h3{font-size:22px;}
+.grp>summary{font-family:var(--display);}
+.hunch{border-radius:20px;}
+.hunch .ans button,.batch .seg button{border-radius:12px;}
+.toast{border-radius:16px;}
+.focusbar{background:var(--store,var(--ink));border-radius:18px;}
+.focusbar .storepick b{font-family:var(--sign);font-size:24px;letter-spacing:.03em;text-transform:uppercase;font-weight:700;}
+.vclose,.voice .btn.primary{border-radius:14px;}
 </style>
 </head>
 <body class="compact">
@@ -639,7 +710,7 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
     </div>
   </details>
 
-  <p class="buildstamp">Build 30 · 26 Nov 2026</p>
+  <p class="buildstamp">Build 31 · 26 Nov 2026</p>
 </div>
 
 <script>
@@ -648,7 +719,7 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
    stale page out of the browser's own cache — is not allowed to save, sync or
    send anything, and goes to fetch the current version instead. On 24 Nov an
    old Build 20 page did exactly that and wiped the activity log's numbering. */
-const BUILD_N=30, BUILD_KEY='shop-build-n';
+const BUILD_N=31, BUILD_KEY='shop-build-n';
 let STALE=false;
 function checkStale(){
   try{
@@ -2082,7 +2153,8 @@ function cadence(name){
   const t=bought[norm(name)];
   if(!t||t.length<2) return null;
   let sum=0; for(let i=1;i<t.length;i++) sum+=t[i]-t[i-1];
-  return (sum/(t.length-1))/86400000;
+  const d=(sum/(t.length-1))/86400000;
+  return d>=1?d:null;                    // ticked twice in a day is a slip of the thumb, not a rhythm
 }
 const daysSince=name=>{
   const t=bought[norm(name)];
@@ -2129,7 +2201,7 @@ function draw(){
   if(f){
     shut['S'+f]=false;                       // the store header is hidden here, so never leave it shut
     const s=store(f), n=items.filter(i=>live(i)).length;
-    fb.style.display='flex';
+    fb.style.display='flex'; fb.style.setProperty('--store',s.color);
     fb.innerHTML='<button class="storepick" id="pickstore">'+
         '<span class="dot" style="background:'+s.color+'"></span>'+
         '<b>'+esc(s.name)+'</b><span class="n">'+n+'</span></button>'+
@@ -2613,7 +2685,13 @@ function contentFixes(){
   if(!patches.fix23){ patches.fix23=1; fixUps23(); ran=true; }
   if(!patches.fix27){ patches.fix27=1; fixUps27(); ran=true; }
   if(!patches.fix29){ patches.fix29=1; fixUps29(); ran=true; }
+  if(!patches.fix31){ patches.fix31=1; fixUps31(); ran=true; }
   return ran;
+}
+function fixUps31(){
+  /* the sign says "Kosher"; said aloud it is still "kosher market", so "kosher salt" stays salt */
+  const k=stores.find(x=>x.id===K);
+  if(k&&k.name==='Kosher market'){ k.name='Kosher'; k.said='kosher market'; log('store','Kosher market is now shown as “Kosher”'); }
 }
 function fixUps29(){
   const ids=items.filter(i=>!i.done&&storeFirst(i.name)).map(i=>i.id);
@@ -3495,7 +3573,7 @@ function storeFirst(base){
   for(const st of stores){
     /* the whole name, always. "Whole Foods" must be said in full: matching on
        "whole" alone would swallow whole milk, and "kosher" kosher salt. */
-    const full=norm(st.name);
+    const full=norm(st.said||st.name);       // what it is called aloud can be longer than what its sign says
     if(full&&b.startsWith(full+' ')){
       const rest=norm(base).slice(full.length).trim();
       if(rest) return {sid:st.id,rest:rest};

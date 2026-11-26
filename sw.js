@@ -3,10 +3,11 @@
    with one bar of signal, waiting on the network indefinitely is the same as
    not opening. Everything else — icons, the sync library — is served from the
    cache, which only changes when the name below does. */
-const CACHE = 'shopping-v3';
+const CACHE = 'shopping-v4';
 const SHELL = ['./', './index.html', './manifest.webmanifest',
                './icon-192.png', './icon-512.png',
-               './firebase-app-compat.js', './firebase-database-compat.js'];
+               './firebase-app-compat.js', './firebase-database-compat.js',
+               './fonts/barlow-condensed-latin-600-normal.woff2', './fonts/barlow-condensed-latin-700-normal.woff2', './fonts/bricolage-grotesque-latin-600-normal.woff2', './fonts/bricolage-grotesque-latin-700-normal.woff2', './fonts/dm-sans-latin-400-normal.woff2', './fonts/dm-sans-latin-500-normal.woff2', './fonts/dm-sans-latin-600-normal.woff2', './fonts/dm-sans-latin-700-normal.woff2'];
 const PATIENCE = 2500;   // ms the network gets before the saved page is shown
 
 self.addEventListener('install', e => {
