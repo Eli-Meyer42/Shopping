@@ -100,6 +100,22 @@
   .box svg{width:12px;height:12px;opacity:0;}
   .label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .also{display:inline-flex;gap:3px;margin-left:7px;vertical-align:middle;}
+  .ano{flex:none;margin-left:auto;min-width:30px;height:26px;padding:0 8px;border-radius:8px;display:inline-grid;place-items:center;
+    font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1;}
+  .ano.sure{background:var(--ink);color:var(--surface);}
+  .ano.guess{border:1.5px dashed var(--faint);color:var(--soft);font-weight:500;}
+  .numrow{display:flex;align-items:center;gap:8px;margin-top:8px;}
+  .numrow .who{flex:1;min-width:0;display:flex;align-items:center;gap:8px;font-size:15.5px;}
+  .numrow input{width:84px;text-align:center;font-weight:700;}
+  .numrow .btn{white-space:nowrap;}
+  .batch .brow{padding:10px 0 11px;border-top:1px solid var(--hair);}
+  .batch .brow b{font-weight:600;}
+  .batch .brow .sub{display:block;font-size:13px;color:var(--soft);margin-top:2px;}
+  .batch .seg{display:flex;gap:6px;margin-top:7px;}
+  .batch .seg button{flex:1;font:inherit;font-size:14px;font-weight:600;min-height:38px;padding:6px 4px;border-radius:10px;
+    cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--soft);}
+  .batch .seg button.on{background:var(--ink);border-color:var(--ink);color:var(--surface);}
+  .voice #hunchbox{max-height:64vh;overflow-y:auto;}
   .also i{width:7px;height:7px;border-radius:50%;display:block;opacity:.85;}
   .mark{color:var(--ink);font-size:14px;width:14px;text-align:right;}
   .row.fresh .label::after{content:'';display:inline-block;width:5px;height:5px;border-radius:50%;
@@ -428,6 +444,9 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
 <div class="sheet" id="sheet-move" role="dialog" aria-modal="true">
   <div class="grab"></div>
   <h3 id="mv-title"></h3>
+  <div class="lab" id="lab-nums" style="margin-top:6px">Aisle number</div>
+  <div id="mv-nums"></div>
+  <div class="lab">Stores</div>
   <p>Tap stores on or off — pick more than one if you could buy it at either.</p>
   <div class="opts" id="mv-stores"></div>
   <div class="lab">List</div>
@@ -566,7 +585,7 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
        href="https://github.com/Eli-Meyer42/Shopping/deployments">Deploy history</a>
   </div>
 
-  <p class="buildstamp">Build 27 · 25 Nov 2026</p>
+  <p class="buildstamp">Build 28 · 26 Nov 2026</p>
 </div>
 
 <script>
@@ -575,7 +594,7 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
    stale page out of the browser's own cache — is not allowed to save, sync or
    send anything, and goes to fetch the current version instead. On 24 Nov an
    old Build 20 page did exactly that and wiped the activity log's numbering. */
-const BUILD_N=27, BUILD_KEY='shop-build-n';
+const BUILD_N=28, BUILD_KEY='shop-build-n';
 let STALE=false;
 function checkStale(){
   try{
@@ -717,6 +736,44 @@ function classify(name,raw){                        // raw: what the built-in ru
 /* ---------- state ---------- */
 let stores=[{id:'s1',name:'Publix',color:'#1E7B45'},{id:'s2',name:'Kosher market',color:'#7A2E5E'},
   {id:'s3',name:'Whole Foods',color:'#0F6E6B'},{id:'s4',name:'Online',color:'#C2761E'}];
+/* Aisle numbers. A number is only ever recorded when he gives it, for one item
+   at one store ("s1|chip" → "9"), and it stays with the item's name for good.
+   For an item he hasn't numbered, the app may offer a guess — the number he
+   gave most often to other things in the same aisle of that store — and a
+   guess always looks like a guess. Numbers never change the order of the list. */
+let aisleNo={}, guessCache={};
+const noKey=(sid,name)=>sid+'|'+key(name);
+function aisleFor(it,sid){
+  const own=aisleNo[noKey(sid,it.name)];
+  if(own) return {n:own,sure:true};
+  if(!it.cat||it.cat==='Other') return null;
+  let g=guessCache[sid];
+  if(!g){
+    g=guessCache[sid]={}; const votes={};
+    for(const k in aisleNo){
+      if(!aisleNo[k]||k.indexOf(sid+'|')!==0) continue;
+      const cat=catOfKey(k.slice(sid.length+1));
+      ((votes[cat]=votes[cat]||{})[aisleNo[k]]=(votes[cat][aisleNo[k]]||0)+1);
+    }
+    for(const cat in votes){ const v=Object.keys(votes[cat]).sort((a,b)=>votes[cat][b]-votes[cat][a]);
+      if(v.length===1||votes[cat][v[0]]>votes[cat][v[1]]) g[cat]=v[0]; }     // a tie is no guess
+  }
+  return g[it.cat]?{n:g[it.cat],sure:false}:null;
+}
+/* the aisle a remembered name belongs to: where it sits on the list now, else where it would be filed */
+function catOfKey(k){
+  const it=items.find(i=>key(i.name)===k); if(it) return it.cat;
+  for(const n of [k,k+'s',k+'es']){ const c=classify(n)[1]; if(c&&c!=='Other') return c; }
+  return 'Other';
+}
+function setAisle(it,sid,v,how){
+  v=String(v||'').replace(/[^0-9a-z]/gi,'').toUpperCase().slice(0,4);
+  const k=noKey(sid,it.name), was=aisleNo[k]||'';
+  if(v===was) return;
+  aisleNo[k]=v; guessCache={};
+  log('aisle-no',it.name+' at '+store(sid).name+': '+(v?'aisle '+v:'number cleared')+(was?' (was '+was+')':'')+' · '+(how||'typed'));
+  draw(); save();
+}
 let learned={}, aliases={}, bought={}, order={}, hist=[], keepUrl='', shut={}, route=ALL.slice(), compact=true;
 
 /* What the app has worked out about how I shop. Small and syncable: the full
@@ -1359,7 +1416,7 @@ function logText(){
    deletion only beats an item that hasn't been touched since. */
 const GONE_TTL=45*24*3600*1000;          // how long a deletion marker is remembered
 const LWW_FIELDS=['bought','order','hist','keepUrl','shut','route','compact','focus','brain','heads','held'];
-const ADD_ONLY=['learned','aliases'];    // nothing is ever removed from these
+const ADD_ONLY=['learned','aliases','aisleNo'];    // nothing is ever removed from these
 const FIELDS=LWW_FIELDS.concat(ADD_ONLY,['stores']);
 
 /* The same data always gives the same text, whatever order its keys were made
@@ -1472,7 +1529,7 @@ function mergeSnaps(L,R){
    new feature can't forget to do it. */
 const FIELD={stores:()=>stores,learned:()=>learned,aliases:()=>aliases,bought:()=>bought,order:()=>order,
   hist:()=>hist,keepUrl:()=>keepUrl,shut:()=>shut,route:()=>route,compact:()=>compact,focus:()=>focus,
-  brain:()=>brain,heads:()=>heads,held:()=>held};
+  brain:()=>brain,heads:()=>heads,held:()=>held,aisleNo:()=>aisleNo};
 function reshadow(){
   shadow={}; items.forEach(i=>{shadow[i.id]=sig(i);});
   shadowF={}; FIELDS.forEach(f=>{shadowF[f]=canon(FIELD[f]());});
@@ -1680,7 +1737,7 @@ function cloudPush(){
 }
 
 let rev=0;
-function snap(){ return {items,stores,learned,aliases,bought,order,hist,keepUrl,shut,route,compact,seq,sseq,patches,focus,brain,heads,held,gone,fu,unsyncedFrom,rev}; }
+function snap(){ return {aisleNo,items,stores,learned,aliases,bought,order,hist,keepUrl,shut,route,compact,seq,sseq,patches,focus,brain,heads,held,gone,fu,unsyncedFrom,rev}; }
 function applyState(d){
   if(!d||!d.items) return false;
   items=d.items; stores=d.stores||stores; learned=d.learned||{}; aliases=d.aliases||{};
@@ -1690,6 +1747,7 @@ function applyState(d){
   patches=d.patches||{}; focus=d.focus||null; rev=d.rev||0;
   unsyncedFrom=d.unsyncedFrom||0;
   heads=d.heads||{}; held=Array.isArray(d.held)?d.held:[]; gone=d.gone||{}; fu=d.fu||{};
+  aisleNo=d.aisleNo||{}; guessCache={};
   brain=Object.assign({pairs:{},no:{},trail:[],trailT:0,trips:0},d.brain||{});
   route=(d.route||ALL).filter(c=>typeof c==='string'&&c.trim()).map(c=>OLD[c]||c);
   route=route.filter((c,i)=>route.indexOf(c)===i);
@@ -1869,6 +1927,13 @@ function footIdle(){
   $('foot').textContent=n?n+' left to buy':'Nothing left here';
 }
 
+/* a number he gave: solid. A guess from its neighbours: dashed, with a question mark. */
+function aisleTag(it,sid,inCart){
+  if(inCart||listOf(it)==='parked') return '';
+  const a=aisleFor(it,sid); if(!a) return '';
+  return a.sure?'<span class="ano sure" title="Aisle '+esc(a.n)+', set by you">'+esc(a.n)+'</span>'
+               :'<span class="ano guess" title="Probably aisle '+esc(a.n)+', going by its neighbours">'+esc(a.n)+'?</span>';
+}
 /* ---------- render ---------- */
 function makeRow(it,inCart,sid,flat){
   const s=store(sid||it.stores[0]);
@@ -1883,7 +1948,7 @@ function makeRow(it,inCart,sid,flat){
   const b=document.createElement('button');
   b.className='tick';
   b.innerHTML='<span class="box" style="'+(it.done?'background:'+s.color+';border-color:'+s.color+';':'')+'">'+TICK+
-    '</span><span class="label">'+esc(it.name)+also+'</span>';
+    '</span><span class="label">'+esc(it.name)+also+'</span>'+aisleTag(it,sid||it.stores[0],inCart);
   b.addEventListener('click',()=>flip(it.id,row,inCart,sid));
   row.appendChild(b);
   if(inCart){
@@ -1953,6 +2018,7 @@ const inFocus=i=>{const f=focusOn();return !f||i.stores.includes(f);};
 const live=i=>!i.done&&inTab(i)&&!i.snoozed&&inFocus(i);
 
 function draw(){
+  guessCache={};
   const host=$('stores'); host.innerHTML='';
   $('n-g').textContent=items.filter(i=>!i.done&&listOf(i)==='grocery'&&!i.snoozed).length||'';
   $('n-e').textContent=items.filter(i=>!i.done&&listOf(i)==='errand'&&!i.snoozed).length||'';
@@ -2300,8 +2366,51 @@ function drawHunch(){
   if(n){ if(!w){ w=document.createElement('span'); w.className='wait'; mic.appendChild(w); } w.textContent=n; mic.setAttribute('aria-label','Add by voice — '+n+' question'+(n===1?'':'s')+' waiting'); }
   else if(w){ w.remove(); mic.setAttribute('aria-label','Add by voice'); }
 }
+let oneByOne=false;
+/* one question's choices, and which one I'd pick */
+function batchRow(q){
+  const live=ids=>ids.map(id=>items.find(i=>i.id===id&&!i.done)).filter(Boolean);
+  if(q.kind==='doubt'){
+    const it=items.find(i=>i.id===q.id), here=it&&listOf(it)==='errand'?'errand':'grocery';
+    const talk=looksSpoken(q.name,false)||/said, not something/.test(q.why||'');
+    const go=to=>()=>{ if(to===here) reviewKeep(q); else reviewRefile(q,to); };
+    return {t:q.name,sub:talk?'reads like talking':'a word I don’t know',pick:talk?2:(here==='grocery'?0:1),
+      ch:[['Groceries',go('grocery')],[ELSE,go('errand')],['Take off',()=>reviewRemove(q)]]};
+  }
+  if(q.kind==='sweep'){ const l=live(q.ids);
+    return {t:l.length+' that read like talking',sub:l.slice(0,4).map(i=>i.name).join(', ')+(l.length>4?' and '+(l.length-4)+' more':''),pick:0,
+      ch:[['Remove all '+l.length,()=>sweepRemove(q)],['Leave them',()=>{ dropReview(q); log('sweep','left them on the list'); }]]}; }
+  if(q.kind==='storefix'){ const l=live(q.ids);
+    return {t:l.map(i=>{ const sf=storeFirst(i.name); return i.name+' → '+cap(sf?sf.rest:i.name)+' at '+(sf?store(sf.sid).name:'?'); }).join(', '),sub:'a store in the name',pick:0,
+      ch:[['Fix',()=>storeFixApply(q)],['Leave',()=>{ dropReview(q); log('storefix','left as they are'); }]]}; }
+  if(q.kind==='near') return {t:q.name+' / '+q.oname,sub:'very similar',pick:0,
+      ch:[['Keep both',()=>reviewNear(q,'both')],['Just '+q.name,()=>reviewNear(q,'new')],['Just '+q.oname,()=>reviewNear(q,'old')]]};
+  if(q.kind==='swap') return {t:q.old.name+' became '+q.name,sub:'you said it again straight after',pick:0,
+      ch:[['That’s right',()=>{ dropReview(q); log('review','swap confirmed: '+q.old.name+' → '+q.name); }],['Keep both',()=>reviewKeepBoth(q)]]};
+  return {t:q.label||q.name||'?',sub:'heard, but not added',pick:1,ch:[['Add it',()=>reviewAdd(q)],['Leave off',()=>reviewDismiss(q)]]};
+}
+function drawBatch(box){
+  const top=box.scrollTop, rows=held.map(q=>({q:q,r:batchRow(q)}));
+  rows.forEach(x=>{ if(typeof x.q.pick!=='number'||x.q.pick>=x.r.ch.length) x.q.pick=x.r.pick; });
+  box.innerHTML='<div class="hunch batch"><div class="why">'+rows.length+' questions, with my best guess for each</div>'+
+    '<p style="margin-bottom:8px">Change any that are wrong, then apply them all.</p>'+
+    rows.map((x,i)=>'<div class="brow"><b>'+esc(x.r.t)+'</b><span class="sub">'+esc(x.r.sub)+'</span><div class="seg">'+
+      x.r.ch.map((c,j)=>'<button data-i="'+i+'" data-j="'+j+'" class="'+(x.q.pick===j?'on':'')+'" aria-pressed="'+(x.q.pick===j)+'">'+esc(c[0])+'</button>').join('')+'</div></div>').join('')+
+    '<div class="ans" style="margin-top:6px"><button class="yes" id="b-all">Apply all '+rows.length+'</button><button id="b-one">One at a time</button></div></div>';
+  box.scrollTop=top;
+  box.querySelectorAll('.seg button').forEach(b=>b.addEventListener('click',()=>{ rows[+b.dataset.i].q.pick=+b.dataset.j; drawBatch(box); }));
+  $('b-one').addEventListener('click',()=>{ oneByOne=true; log('review-batch','chose to go one at a time'); drawHunch(); });
+  $('b-all').addEventListener('click',()=>{
+    const did=rows.map(x=>x.r.t+' → '+x.r.ch[x.q.pick][0]);
+    rows.forEach(x=>{ try{ x.r.ch[x.q.pick][1](); }catch(e){ log('ERROR','batch answer failed for '+x.r.t+': '+e.message); } });
+    log('review-batch','answered '+rows.length+' at once: '+did.join(' · '));
+    draw(); save(); flash('Answered '+rows.length+' questions.');
+  });
+}
 function drawHunchIn(box){
   const q=nextReview();
+  if(!q||held.length<3) oneByOne=false;
+  if(q&&held.length>=3&&!oneByOne){ drawBatch(box); return; }
   if(q){ drawReview(box,q); return; }
   if(hunchOn&&hunchOn.kind==='due'&&items.some(i=>norm(i.name)===hunchOn.key)) hunchOn=null;
   if(hunchOn&&hunchOn.kind==='order'){        // already handled some other way?
@@ -2613,6 +2722,21 @@ function openMove(id){
   $('mv-snooze').style.display=listOf(it)==='parked'?'none':'';
   $('lab-aisle').style.display=isErr?'none':'';
   $('mv-cats').style.display=isErr?'none':'';
+
+  const nu=$('mv-nums'); nu.innerHTML='';
+  $('lab-nums').style.display=listOf(it)==='parked'?'none':'';
+  if(listOf(it)!=='parked') it.stores.forEach(sid=>{
+    const a=aisleFor(it,sid), own=a&&a.sure?a.n:'', r=document.createElement('div'); r.className='numrow';
+    r.innerHTML='<span class="who"><span class="dot" style="background:'+store(sid).color+'"></span>'+esc(store(sid).name)+'</span>';
+    if(a&&!a.sure){ const y=document.createElement('button'); y.className='btn'; y.textContent='Yes, '+a.n;
+      y.addEventListener('click',()=>{ setAisle(it,sid,a.n,'confirmed the guess'); openMove(id); }); r.appendChild(y); }
+    const inp=document.createElement('input'); inp.id='mv-num-'+sid; inp.value=own; inp.placeholder=a&&!a.sure?a.n+'?':'—';
+    inp.setAttribute('inputmode','numeric'); inp.setAttribute('autocomplete','off'); inp.setAttribute('aria-label','Aisle number at '+store(sid).name);
+    const commit=()=>{ setAisle(it,sid,inp.value,'typed'); };
+    inp.addEventListener('change',commit);
+    inp.addEventListener('keydown',e=>{ if(e.key==='Enter'){ commit(); inp.blur(); openMove(id); } });
+    r.appendChild(inp); nu.appendChild(r);
+  });
 
   const co=$('mv-cats'); co.innerHTML='';
   route.forEach(c=>{
@@ -3261,6 +3385,28 @@ function undoLast(){
    the words are left for everything else to make sense of. */
 const FILE_A=/^(.+?)\s+(?:goes|go|belongs?|should (?:be|go)|is)\s+(?:in|into|under|to|at|on)\s+(?:the\s+)?(.+)$/i;
 const FILE_B=/^(?:put|move|file)\s+(.+?)\s+(?:in|into|under|to|at|on)\s+(?:the\s+)?(.+)$/i;
+/* "chips aisle 9", "chips are in aisle nine", "rice is aisle 12 at Costco" */
+const NUMW={one:1,two:2,to:2,too:2,three:3,four:4,for:4,five:5,six:6,seven:7,eight:8,ate:8,nine:9,ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,twenty:20};
+const AISLE_SAID=/^(.+?)\s+(?:(?:is|are|goes|go|was|were)\s+)?(?:(?:in|on|at)\s+)?(?:aisle|isle|i'll|aisles)\s+(?:number\s+)?([a-z0-9]+)(?:\s+(?:at|in)\s+(.+))?$/i;
+function aisleSaid(text){
+  const m=text.trim().match(AISLE_SAID); if(!m) return null;
+  const w=m[2].toLowerCase(), n=/^\d{1,3}[a-z]?$/.test(w)?w:(NUMW[w]?String(NUMW[w]):null);
+  if(!n) return null;
+  let sid=null;
+  if(m[3]){ const p=placeSaid(m[3]); if(!p||!p.store) return null; sid=p.store; }
+  const what=unmishear(norm(m[1])).replace(/^(the|my|some)\s+/,'');
+  return what?{what:what,n:n,sid:sid,raw:text}:null;
+}
+function aisleBySaying(a){
+  let it=items.find(i=>!i.done&&key(i.name)===key(a.what))||items.find(i=>!i.done&&norm(i.name).indexOf(norm(a.what))>=0);
+  const isNew=!it;
+  if(isNew){ addItem(a.what,true); it=items[items.length-1]; }
+  const sid=a.sid||it.stores[0];
+  if(a.sid&&it.stores.indexOf(a.sid)<0){ it.stores.push(a.sid); remember(it); }
+  vlog(esc(it.name)+' → aisle '+esc(a.n.toUpperCase())+'<span class="where">at '+esc(store(sid).name)+(isNew?' · added to the list':'')+'</span>');
+  $('v-heard').textContent='';
+  setAisle(it,sid,a.n,'said: '+JSON.stringify(a.raw));
+}
 function placeSaid(t){
   const n=norm(t).replace(/\b(aisle|section|list|store|department)\b/g,'').replace(/\s+/g,' ').trim();
   if(!n) return null;
@@ -3318,6 +3464,7 @@ function heard(text,typed){
     quiet(); return;
   }
 
+  { const a=aisleSaid(text); if(a){ aisleBySaying(a); quiet(); return; } }
   { const f=filingSaid(text); if(f){ fileBySaying(f); quiet(); return; } }
 
   if(SCRATCH.test(norm(text))){
