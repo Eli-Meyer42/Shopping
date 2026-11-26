@@ -301,6 +301,7 @@ body.compact .store-head{height:50px;}
 .vpulse.live{animation:vp 1.6s ease-out infinite;}
 @keyframes vp{0%{box-shadow:0 0 0 0 rgba(79,112,136,.40);}70%{box-shadow:0 0 0 26px rgba(79,112,136,0);}100%{box-shadow:0 0 0 0 rgba(79,112,136,0);}}
 .vpulse.idle{background:var(--faint);}
+.vpulse{cursor:pointer;}
 .vhint{margin:0;font-size:17px;color:var(--soft);text-align:center;}
 .vheard{margin:0;font-size:21px;font-weight:600;text-align:center;min-height:28px;
   color:var(--ink);line-height:1.25;}
@@ -565,7 +566,7 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
        href="https://github.com/Eli-Meyer42/Shopping/deployments">Deploy history</a>
   </div>
 
-  <p class="buildstamp">Build 26 · 25 Nov 2026</p>
+  <p class="buildstamp">Build 27 · 25 Nov 2026</p>
 </div>
 
 <script>
@@ -574,7 +575,7 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
    stale page out of the browser's own cache — is not allowed to save, sync or
    send anything, and goes to fetch the current version instead. On 24 Nov an
    old Build 20 page did exactly that and wiped the activity log's numbering. */
-const BUILD_N=26, BUILD_KEY='shop-build-n';
+const BUILD_N=27, BUILD_KEY='shop-build-n';
 let STALE=false;
 function checkStale(){
   try{
@@ -2405,7 +2406,14 @@ function contentFixes(){
   if(!patches.sweep1){ patches.sweep1=1; sweepSpeech(); ran=true; }
   if(!patches.fix22){ patches.fix22=1; fixUps22(); ran=true; }
   if(!patches.fix23){ patches.fix23=1; fixUps23(); ran=true; }
+  if(!patches.fix27){ patches.fix27=1; fixUps27(); ran=true; }
   return ran;
+}
+function fixUps27(){
+  const bad='jalapeno goes in produce';
+  if(bought[bad]){ bought.jalapeno=(bought.jalapeno||[]).concat(bought[bad]).sort((a,b)=>a-b); delete bought[bad]; log('history','“Jalapeno goes in produce” in History is now “Jalapeno”'); }
+  items.forEach(i=>{ if(norm(i.name)===bad){ i.name='Jalapeno'; i.cat='Produce'; } });
+  learned.jalapeno=[classify('jalapeno')[0],'Produce','grocery'];
 }
 function fixUps23(){
   /* The shop of Fri 20 Nov happened before the app was watching trips, but
@@ -2966,7 +2974,7 @@ $('v-text').addEventListener('input',()=>{ if(voiceOn){ clearTimeout(quietT); } 
 $('v-text').addEventListener('focus',()=>{ if(voiceOn){ clearTimeout(quietT); } });
 $('v-text').addEventListener('blur',()=>{ if(voiceOn) quiet(); });
 function voiceOpen(){
-  voiceOn=true; spoke=0;
+  voiceOn=true; spoke=0; micOff=false;
   $('v-log').innerHTML='';
   $('v-heard').textContent=''; $('v-text').value='';
   $('v-hint').textContent='Listening… say “done” when finished';
@@ -2997,12 +3005,34 @@ function voiceClose(why){
 /* A note is thinking out loud, so it gets far longer before silence ends it. */
 const NOTE_QUIET_MS=25000;
 let noteBuf=null, noteEl=null;      // the note being dictated, and its row on screen
+let micOff=false;
+function micPause(why){
+  if(!voiceOn||micOff) return;
+  micOff=true; clearTimeout(restartT); clearTimeout(quietT);
+  if(rec){ rec.__mine=true; try{ rec.abort(); }catch(e){} }
+  rec=null;
+  $('v-pulse').className='vpulse idle'; $('v-heard').textContent='';
+  $('v-hint').textContent='Mic off. Tap it to talk again';
+  log('voice-pause',why+' · mic off, page stays for the questions waiting');
+}
+function micResume(){
+  if(!voiceOn||!micOff||!SR) return;
+  micOff=false;
+  $('v-pulse').className='vpulse live';
+  $('v-hint').textContent='Listening… say “done” when finished';
+  log('voice-resume','');
+  quiet(); listen();
+}
+$('v-pulse').addEventListener('click',()=>{ if(micOff) micResume(); else if(voiceOn&&SR) micPause('tapped'); });
 function quiet(){
+  if(micOff) return;
   clearTimeout(quietT);
   quietT=setTimeout(()=>{
     if(!voiceOn) return;
     if(noteBuf!==null){ endNote('silence'); quiet(); return; }   // close the note, keep listening
     if(document.activeElement===$('v-text')) return;             // typing, not gone quiet
+    /* questions waiting: the mic goes off, the page stays, so they can be answered */
+    if(held.length||hunchOn||hunch()){ micPause('silence'); return; }
     flash('Stopped listening — it went quiet.'); voiceClose('silence');
   },noteBuf!==null?NOTE_QUIET_MS:QUIET_MS);
 }
@@ -3017,7 +3047,7 @@ function endNote(why){
   $('v-hint').textContent='Listening\u2026 say \u201cdone\u201d when finished';
 }
 function listen(){
-  if(!voiceOn) return;
+  if(!voiceOn||micOff) return;
   if(rec){ rec.__mine=true; try{ rec.abort(); }catch(e){} }   // our own restart, not a failure
   rec=new SR();
   rec.lang='en-US';
@@ -3050,7 +3080,7 @@ function listen(){
     if(ev.error==='aborted'||ev.error==='network') return;
     $('v-hint').textContent='Voice error: '+ev.error;
   };
-  rec.onend=()=>{ if(voiceOn){ clearTimeout(restartT); restartT=setTimeout(listen,160); } };
+  rec.onend=()=>{ if(voiceOn&&!micOff){ clearTimeout(restartT); restartT=setTimeout(listen,160); } };
   try{ rec.start(); }
   catch(e){ clearTimeout(restartT); restartT=setTimeout(listen,320); }
 }
@@ -3226,6 +3256,44 @@ function undoLast(){
   return n;
 }
 
+/* "X goes in Y", "put X in Y", "move X to Y" — where Y is an aisle, a store or
+   one of the lists. Only an instruction if Y really is one of those; otherwise
+   the words are left for everything else to make sense of. */
+const FILE_A=/^(.+?)\s+(?:goes|go|belongs?|should (?:be|go)|is)\s+(?:in|into|under|to|at|on)\s+(?:the\s+)?(.+)$/i;
+const FILE_B=/^(?:put|move|file)\s+(.+?)\s+(?:in|into|under|to|at|on)\s+(?:the\s+)?(.+)$/i;
+function placeSaid(t){
+  const n=norm(t).replace(/\b(aisle|section|list|store|department)\b/g,'').replace(/\s+/g,' ').trim();
+  if(!n) return null;
+  const st=stores.find(x=>norm(x.name)===n||norm(x.name).split(' ')[0]===n);
+  if(st) return {store:st.id};
+  if(n===norm(ELSE)||n==='rest'||n==='errands'||n==='errand') return {list:'errand'};
+  if(n==='groceries'||n==='grocery') return {list:'grocery'};
+  const aisles=route.concat(ALL.filter(a=>route.indexOf(a)<0));
+  const a=aisles.find(c=>norm(c)===n)||aisles.find(c=>norm(c).split(' ').some(w=>w===n||sing(w)===sing(n)))||
+          aisles.find(c=>n.split(' ').every(w=>norm(c).indexOf(sing(w))>=0));
+  return a?{cat:a}:null;
+}
+function filingSaid(text){
+  const m=text.trim().match(FILE_B)||text.trim().match(FILE_A);
+  if(!m) return null;
+  const to=placeSaid(m[2]); if(!to) return null;
+  const what=unmishear(norm(m[1])).replace(/^(the|my|some)\s+/,'');
+  return what?{what:what,to:to,raw:text}:null;
+}
+function fileBySaying(f){
+  let it=items.find(i=>!i.done&&key(i.name)===key(f.what))||items.find(i=>!i.done&&norm(i.name).indexOf(norm(f.what))>=0);
+  const isNew=!it;
+  if(isNew){ addItem(f.what,true); it=items[items.length-1]; }
+  let where;
+  if(f.to.cat){ it.cat=f.to.cat; where=f.to.cat; }
+  else if(f.to.store){ it.stores=[f.to.store]; where=store(f.to.store).name; }
+  else { it.list=f.to.list; where=listName(f.to.list); }
+  remember(it);
+  log('file-said',it.name+' → '+where+(isNew?' (wasn’t on the list: added)':'')+' | from '+JSON.stringify(f.raw));
+  vlog(esc(it.name)+' → '+esc(where)+'<span class="where">'+(isNew?'added, and ':'')+'remembered for next time</span>');
+  $('v-heard').textContent='';
+  draw(); save();
+}
 function heard(text,typed){
   spoke++;
   log(typed?'typed-voice':'heard',JSON.stringify(text));
@@ -3249,6 +3317,8 @@ function heard(text,typed){
     log('note-start',noteBuf?JSON.stringify(noteBuf):'(waiting)');
     quiet(); return;
   }
+
+  { const f=filingSaid(text); if(f){ fileBySaying(f); quiet(); return; } }
 
   if(SCRATCH.test(norm(text))){
     const n=undoLast();
@@ -3447,6 +3517,7 @@ function queueReview(e){
   held=held.filter(h=>!(h.kind===e.kind&&(e.kind==='held'?norm(h.label)===norm(e.label):h.id===e.id)));
   held.push(e);
   if(held.length>HELD_MAX) held=held.slice(-HELD_MAX);
+  if(voiceOn) setTimeout(drawHunch,0);             // the add panel is open: show it there now, not after it closes
 }
 const dropReview=e=>{ held=held.filter(h=>!(h.kind===e.kind&&h.t===e.t)); };
 function nextReview(){
