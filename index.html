@@ -172,6 +172,25 @@
   .inline{display:flex;gap:7px;}
   .inline input{flex:1;min-width:0;}
   .lab{font-size:14px;font-weight:600;color:var(--soft);margin:20px 0 8px;}
+  .grp{border-top:1px solid var(--hair);}
+  .grp:last-of-type{border-bottom:1px solid var(--hair);}
+  .grp>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;
+    min-height:52px;font-size:16.5px;font-weight:600;}
+  .grp>summary::-webkit-details-marker{display:none;}
+  .grp>summary::after{content:'';width:8px;height:8px;border-right:2px solid var(--faint);border-bottom:2px solid var(--faint);
+    transform:rotate(45deg);margin-right:6px;transition:transform .15s;}
+  .grp[open]>summary::after{transform:rotate(225deg);}
+  .grp[open]{padding-bottom:16px;}
+  .grp .lab:first-of-type{margin-top:14px;}
+  #set-top{margin:12px 0 14px;}
+  #set-top .lab{margin:0 0 8px;}
+  .btn.busy{opacity:.55;pointer-events:none;}
+  .bar .micbtn{font-size:16.5px;font-weight:600;padding:13px 8px;}
+  .bar .micbtn svg{width:19px;height:19px;}
+  .bar .micbtn .wait{position:static;margin-left:4px;background:#fff;color:var(--accent);border:none;}
+  .row .open{flex:1 1 0;min-width:0;display:flex;align-items:center;gap:6px;text-align:left;font:inherit;color:inherit;
+    background:none;border:none;padding:11px 2px 11px 0;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  .row .tick.boxonly{flex:none;padding:11px 12px 11px 0;gap:0;}
   .say{margin-top:12px;padding:11px 13px;background:var(--bg);border-radius:12px;font-size:14px;color:var(--soft);}
   .alert{margin-top:12px;padding:12px 13px;background:#FBF0EA;border:1px solid #EBD3C5;border-radius:12px;font-size:14.5px;color:#7A3A1C;}
   .seg{display:flex;gap:7px;}
@@ -268,7 +287,9 @@ body.compact .store-head{height:50px;}
 /* four tabs need to fit */
 .tabs{overflow-x:auto;scrollbar-width:none;}
 .tabs::-webkit-scrollbar{display:none;}
-.tabs button{font-size:13.5px;padding:9px 10px;white-space:nowrap;}
+.tabs{gap:2px;}
+.tabs button{font-size:13.5px;padding:9px 6px;white-space:nowrap;}
+.tabs em{font-size:12px;}
 .pad{display:none;}
 /* errands, parked, history: the same ruled list, on one card */
 .flat{display:block;margin-top:14px;padding:4px 0;border-radius:20px;background:var(--surface);
@@ -303,7 +324,7 @@ body.compact .store-head{height:50px;}
 .buildstamp{text-align:center;font-size:12px;color:var(--faint);margin:22px 0 2px;}
 
 /* ---- voice ---- */
-.micbtn{flex:none;width:48px;padding:0;display:grid;place-items:center;color:var(--soft);}
+
 .micbtn svg{width:21px;height:21px;}
 .voice{position:fixed;inset:0;z-index:90;background:var(--bg);display:none;
   flex-direction:column;padding:16px 16px calc(18px + env(safe-area-inset-bottom));}
@@ -389,8 +410,7 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
       </button>
     </div>
     <div class="bar">
-      <button id="open-keep"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M11 3H4.5v14h11V8"/><path d="M11 3l4.5 5H11V3z" fill="currentColor" stroke="none"/></svg>Open note</button>
-      <button class="go" id="open-import"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v9M6.5 8.5L10 12l3.5-3.5M4 15.5h12"/></svg>Import</button>
+      <button class="go micbtn" id="mic" aria-label="Add by voice"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="7.4" y="2.2" width="5.2" height="9.2" rx="2.6"/><path d="M4.6 9.2a5.4 5.4 0 0 0 10.8 0M10 14.6v3.2"/></svg>Add or say an item</button>
     </div>
     <div class="tabs">
       <button id="tab-g">Groceries <em id="n-g"></em></button>
@@ -412,9 +432,6 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
     <div id="cart"></div>
   </section>
   <div class="add">
-    <button class="btn micbtn" id="mic" aria-label="Add by voice">
-      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="7.4" y="2.2" width="5.2" height="9.2" rx="2.6"/><path d="M4.6 9.2a5.4 5.4 0 0 0 10.8 0M10 14.6v3.2"/></svg>
-    </button>
     <input id="new-name" placeholder="Add an item" autocomplete="off">
     <button class="btn primary" id="add-btn">Add</button>
   </div>
@@ -463,7 +480,7 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
   </div>
   <div class="stack" style="margin-top:14px">
     <button class="btn" id="mv-snooze">Snooze — hide it for now</button>
-    <button class="btn" id="mv-delete">Delete item</button>
+    <button class="btn" id="mv-delete">Remove from the list (not bought)</button>
   </div>
 </div>
 
@@ -499,93 +516,101 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
   <div class="grab"></div>
   <h3>Settings</h3>
 
-  <div class="lab">Aisles</div>
-  <p style="margin-bottom:9px">Add or remove aisle names here. The order you walk them is set
-  per store, with the arrows on each aisle on the main screen.</p>
-  <div id="route"></div>
-  <div class="inline" style="margin-top:8px">
-    <input id="aisle-new" placeholder="New aisle name" autocomplete="off">
-    <button class="btn primary" id="aisle-add">Add</button>
-  </div>
+  <div class="syncrow" style="margin-top:2px"><span class="syncdot off" id="syncdot"></span><span id="syncword">Not connected</span></div>
+  <div id="set-top"></div>
 
-  <div class="lab">Density</div>
-  <div class="seg">
-    <button id="den-c">Compact</button>
-    <button id="den-r">Roomy</button>
-  </div>
+  <details class="grp"><summary>Display</summary>
+    <div class="seg">
+      <button id="den-c">Compact</button>
+      <button id="den-r">Roomy</button>
+    </div>
+  </details>
 
-  <div class="lab">Keep note link</div>
-  <div class="inline">
-    <input id="keep-url" placeholder="https://keep.google.com/#NOTE/…" autocomplete="off">
-    <button class="btn primary" id="keep-save">Save</button>
-  </div>
+  <details class="grp"><summary>Aisles</summary>
+    <p style="margin-bottom:9px">Add or remove aisle names here. The order you walk them is set
+    per store, with the arrows on each aisle on the main screen.</p>
+    <div id="route"></div>
+    <div class="inline" style="margin-top:8px">
+      <input id="aisle-new" placeholder="New aisle name" autocomplete="off">
+      <button class="btn primary" id="aisle-add">Add</button>
+    </div>
+  </details>
 
-  <div class="lab">Sync</div>
-  <div class="syncrow"><span class="syncdot off" id="syncdot"></span><span id="syncword">Not connected</span></div>
+  <details class="grp"><summary>Import a list</summary>
+    <div class="stack">
+      <button class="btn" id="open-import">Paste a list to import</button>
+      <button class="btn" id="open-keep">Open the Keep note</button>
+    </div>
+    <div class="lab">Keep note link</div>
+    <div class="inline">
+      <input id="keep-url" placeholder="https://keep.google.com/#NOTE/…" autocomplete="off">
+      <button class="btn primary" id="keep-save">Save</button>
+    </div>
+    <div class="lab">Note memory</div>
+    <p style="margin-bottom:9px" id="hist-note"></p>
+    <div class="stack"><button class="btn" id="reset-snap">Forget the note history</button></div>
+  </details>
 
-  <div class="lab">Backup to a file</div>
-  <div class="stack">
-    <button class="btn" id="exp">Export backup file</button>
-    <button class="btn" id="imp">Restore from a file</button>
-    <input type="file" id="imp-file" accept=".json" style="display:none">
-  </div>
+  <details class="grp"><summary>History and backups</summary>
+    <p style="margin-bottom:9px" id="ghstate">Not set up.</p>
+    <div class="stack">
+      <button class="btn" id="gh-send">Send history now</button>
+      <button class="btn" id="gh-auto">Auto-send: off</button>
+      <button class="btn" id="bk-now">Back up the list now</button>
+      <button class="btn" id="bk-open">Restore from a backup…</button>
+    </div>
+    <div class="lab">GitHub connection</div>
+    <div class="inline" style="margin-bottom:7px">
+      <input id="gh-repo" placeholder="owner/repo" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="inline">
+      <input id="gh-tok" type="password" placeholder="GitHub token" autocomplete="off" spellcheck="false">
+      <button class="btn primary" id="gh-save">Save</button>
+    </div>
+    <p class="hint" style="margin-top:9px">Two things are kept in that private repo, where Claude can
+      read them: the activity log, sent in numbered pieces so a gap would show, and a copy of the whole
+      list for every day the app is opened. The token stays on this device — it is never written into
+      the app's code and never goes into the synced database.</p>
+    <div class="lab">Activity log on this phone</div>
+    <p style="margin-bottom:9px" id="logcount">No activity recorded yet.</p>
+    <div class="stack">
+      <button class="btn" id="exp-log">Export activity log</button>
+      <button class="btn" id="clr-log">Clear the log</button>
+    </div>
+    <div class="lab">Backup to a file</div>
+    <div class="stack">
+      <button class="btn" id="exp">Export backup file</button>
+      <button class="btn" id="imp">Restore from a file</button>
+      <input type="file" id="imp-file" accept=".json" style="display:none">
+    </div>
+  </details>
 
-  <div class="lab">What it's picked up</div>
-  <p style="margin-bottom:9px" id="brainnote">Nothing yet.</p>
-  <div class="stack">
-    <button class="btn" id="forget-brain">Forget what it learned</button>
-  </div>
+  <details class="grp"><summary>What it's learned</summary>
+    <p style="margin-bottom:9px" id="brainnote">Nothing yet.</p>
+    <div class="stack">
+      <button class="btn" id="forget-brain">Forget what it learned</button>
+    </div>
+  </details>
 
-  <div class="lab">History and backups</div>
-  <p style="margin-bottom:9px" id="ghstate">Not set up.</p>
-  <div class="inline" style="margin-bottom:7px">
-    <input id="gh-repo" placeholder="owner/repo" autocomplete="off" spellcheck="false">
-  </div>
-  <div class="inline">
-    <input id="gh-tok" type="password" placeholder="GitHub token" autocomplete="off" spellcheck="false">
-    <button class="btn primary" id="gh-save">Save</button>
-  </div>
-  <div class="stack" style="margin-top:7px">
-    <button class="btn" id="gh-send">Send history now</button>
-    <button class="btn" id="gh-auto">Auto-send: off</button>
-    <button class="btn" id="bk-now">Back up the list now</button>
-    <button class="btn" id="bk-open">Restore from a backup…</button>
-  </div>
-  <p class="hint" style="margin-top:9px">Two things are kept in that private repo, where Claude can
-    read them: the activity log, sent in numbered pieces so a gap would show, and a copy of the whole
-    list for every day the app is opened. The token stays on this device — it is never written into
-    the app's code and never goes into the synced database.</p>
+  <details class="grp"><summary>Start over</summary>
+    <p style="margin-bottom:9px">Deletes every item, bought or not. Your stores, aisles and what the app has learned stay.</p>
+    <div class="stack"><button class="btn" id="wipe">Clear the whole list</button></div>
+  </details>
 
-  <div class="lab">Activity log</div>
-  <p style="margin-bottom:9px" id="logcount">No activity recorded yet.</p>
-  <p class="hint" style="margin-bottom:9px">Every tap, and what the app did about it. This is
-    the same record it learns from, so exporting it shows you exactly what it has to go on.</p>
-  <div class="stack">
-    <button class="btn" id="exp-log">Export activity log</button>
-    <button class="btn" id="clr-log">Clear the log</button>
-  </div>
+  <details class="grp"><summary>Links</summary>
+    <div class="stack">
+      <a class="btn linkbtn" target="_blank" rel="noopener"
+         href="https://console.firebase.google.com/project/shopping-eb9b3/database/shopping-eb9b3-default-rtdb/data">Stored data</a>
+      <a class="btn linkbtn" id="fbconsole" target="_blank" rel="noopener"
+         href="https://console.firebase.google.com/project/shopping-eb9b3/settings/general/web:MzdlZTc3ODMtMDliOS00ODRmLTkxYmQtMDliMGVkZmE0MmU2">Firebase console</a>
+      <a class="btn linkbtn" target="_blank" rel="noopener"
+         href="https://github.com/Eli-Meyer42/Shopping">GitHub repository</a>
+      <a class="btn linkbtn" target="_blank" rel="noopener"
+         href="https://github.com/Eli-Meyer42/Shopping/deployments">Deploy history</a>
+    </div>
+  </details>
 
-  <div class="lab">Start over</div>
-  <p style="margin-bottom:9px">Deletes every item, bought or not. Your stores, aisles and what the app has learned stay.</p>
-  <div class="stack"><button class="btn" id="wipe">Clear the whole list</button></div>
-
-  <div class="lab">Note memory</div>
-  <p style="margin-bottom:9px" id="hist-note"></p>
-  <div class="stack"><button class="btn" id="reset-snap">Forget the note history</button></div>
-
-  <div class="lab">Links</div>
-  <div class="stack">
-    <a class="btn linkbtn" target="_blank" rel="noopener"
-       href="https://console.firebase.google.com/project/shopping-eb9b3/database/shopping-eb9b3-default-rtdb/data">Stored data</a>
-    <a class="btn linkbtn" id="fbconsole" target="_blank" rel="noopener"
-       href="https://console.firebase.google.com/project/shopping-eb9b3/settings/general/web:MzdlZTc3ODMtMDliOS00ODRmLTkxYmQtMDliMGVkZmE0MmU2">Firebase console</a>
-    <a class="btn linkbtn" target="_blank" rel="noopener"
-       href="https://github.com/Eli-Meyer42/Shopping">GitHub repository</a>
-    <a class="btn linkbtn" target="_blank" rel="noopener"
-       href="https://github.com/Eli-Meyer42/Shopping/deployments">Deploy history</a>
-  </div>
-
-  <p class="buildstamp">Build 28 · 26 Nov 2026</p>
+  <p class="buildstamp">Build 29 · 26 Nov 2026</p>
 </div>
 
 <script>
@@ -594,7 +619,7 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
    stale page out of the browser's own cache — is not allowed to save, sync or
    send anything, and goes to fetch the current version instead. On 24 Nov an
    old Build 20 page did exactly that and wiped the activity log's numbering. */
-const BUILD_N=28, BUILD_KEY='shop-build-n';
+const BUILD_N=29, BUILD_KEY='shop-build-n';
 let STALE=false;
 function checkStale(){
   try{
@@ -1946,11 +1971,23 @@ function makeRow(it,inCart,sid,flat){
       others.map(id=>'<i style="background:'+store(id).color+'"></i>').join('')+'</span>';
   }
   const b=document.createElement('button');
-  b.className='tick';
-  b.innerHTML='<span class="box" style="'+(it.done?'background:'+s.color+';border-color:'+s.color+';':'')+'">'+TICK+
-    '</span><span class="label">'+esc(it.name)+also+'</span>'+aisleTag(it,sid||it.stores[0],inCart);
-  b.addEventListener('click',()=>flip(it.id,row,inCart,sid));
-  row.appendChild(b);
+  const boxHTML='<span class="box" style="'+(it.done?'background:'+s.color+';border-color:'+s.color+';':'')+'">'+TICK+'</span>';
+  if(inCart){
+    b.className='tick';
+    b.innerHTML=boxHTML+'<span class="label">'+esc(it.name)+also+'</span>';
+    b.addEventListener('click',()=>flip(it.id,row,inCart,sid));
+    row.appendChild(b);
+  } else {
+    /* the box is for buying it; the name opens everything else that can be done to it */
+    b.className='tick boxonly'; b.innerHTML=boxHTML; b.setAttribute('aria-label','tick: '+it.name);
+    b.addEventListener('click',()=>flip(it.id,row,inCart,sid));
+    row.appendChild(b);
+    const o=document.createElement('button');
+    o.className='open'; o.setAttribute('aria-label','open: '+it.name);
+    o.innerHTML='<span class="label">'+esc(it.name)+also+'</span>'+aisleTag(it,sid||it.stores[0],inCart);
+    o.addEventListener('click',()=>openMove(it.id));
+    row.appendChild(o);
+  }
   if(inCart){
     const tr=document.createElement('button');
     tr.className='rowbtn trash'; tr.innerHTML=TRASH;
@@ -1971,10 +2008,12 @@ function makeRow(it,inCart,sid,flat){
     z.addEventListener('click',e=>{e.stopPropagation();snoozeItem(it,row);});
     row.appendChild(z);
   }
-  const m=document.createElement('button');
-  m.className='move'; m.innerHTML=MOVE; m.setAttribute('aria-label','Move '+it.name);
-  m.addEventListener('click',e=>{e.stopPropagation();openMove(it.id);});
-  row.appendChild(m);
+  if(inCart){
+    const m=document.createElement('button');
+    m.className='move'; m.innerHTML=MOVE; m.setAttribute('aria-label','Move '+it.name);
+    m.addEventListener('click',e=>{e.stopPropagation();openMove(it.id);});
+    row.appendChild(m);
+  }
   return row;
 }
 function markBought(name){
@@ -2516,7 +2555,13 @@ function contentFixes(){
   if(!patches.fix22){ patches.fix22=1; fixUps22(); ran=true; }
   if(!patches.fix23){ patches.fix23=1; fixUps23(); ran=true; }
   if(!patches.fix27){ patches.fix27=1; fixUps27(); ran=true; }
+  if(!patches.fix29){ patches.fix29=1; fixUps29(); ran=true; }
   return ran;
+}
+function fixUps29(){
+  const ids=items.filter(i=>!i.done&&storeFirst(i.name)).map(i=>i.id);
+  if(ids.length){ storeFixApply({kind:'storefix',t:0,ids:ids}); }
+  held=held.filter(h=>h.kind!=='storefix');
 }
 function fixUps27(){
   const bad='jalapeno goes in produce';
@@ -2811,8 +2856,8 @@ $('mv-snooze').addEventListener('click',()=>{
   closeSheets(); snoozeItem(it);
 });
 
-$('mv-delete').addEventListener('click',()=>{const it=items.find(i=>i.id===mvId); if(it) log('delete',it.name);
-  items=items.filter(i=>i.id!==mvId);closeSheets();draw();save();});
+$('mv-delete').addEventListener('click',()=>{const it=items.find(i=>i.id===mvId); if(it) log('delete',it.name+' (removed, not bought)');
+  items=items.filter(i=>i.id!==mvId);closeSheets();draw();save(); if(it) flash('Removed '+it.name+' — not counted as bought.');});
 
 /* ---------- settings ---------- */
 function drawRoute(){
@@ -2891,7 +2936,31 @@ function closeSheets(keep){
 }
 $('scrim').addEventListener('click',()=>closeSheets());
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSheets();});
-function openSettings(){ drawRoute(); wipeDisarm(); show('sheet-set'); }
+/* which settings he actually presses, counted on this phone, so the top of the sheet can be those */
+const USE_KEY='shop-setuse-1';
+let setUse={}; try{ setUse=JSON.parse(localStorage.getItem(USE_KEY)||'{}')||{}; }catch(e){}
+$('sheet-set').addEventListener('click',e=>{
+  const b=e.target.closest('button.btn,a.btn'); if(!b||!b.id||b.closest('#set-top')||/^(gh-save|keep-save|aisle-add)$/.test(b.id)) return;
+  setUse[b.id]=(setUse[b.id]||0)+1; try{ localStorage.setItem(USE_KEY,JSON.stringify(setUse)); }catch(_){}
+},true);
+function drawSetTop(){
+  const box=$('set-top'); box.innerHTML='';
+  const ids=Object.keys(setUse).filter(id=>setUse[id]>=2&&$(id)&&id!=='wipe'&&id!=='clr-log'&&id!=='forget-brain')
+    .sort((a,b)=>setUse[b]-setUse[a]).slice(0,3);
+  if(!ids.length) return;
+  box.innerHTML='<div class="lab">Most used</div><div class="stack"></div>';
+  ids.forEach(id=>{
+    const o=$(id), b=document.createElement('button'); b.className='btn'; b.textContent=o.textContent;
+    b.setAttribute('aria-label',o.textContent.trim()+' (most used)');
+    b.addEventListener('click',()=>{ setUse[id]++; try{ localStorage.setItem(USE_KEY,JSON.stringify(setUse)); }catch(_){}
+      /* whatever the real button says while it works, this one says too */
+      const mo=new MutationObserver(()=>{ b.textContent=o.textContent; b.className=o.className; });
+      mo.observe(o,{childList:true,characterData:true,subtree:true,attributes:true}); setTimeout(()=>mo.disconnect(),6000);
+      o.click(); });
+    box.querySelector('.stack').appendChild(b);
+  });
+}
+function openSettings(){ drawRoute(); wipeDisarm(); drawSetTop(); document.querySelectorAll('#sheet-set details.grp').forEach(d=>{ d.open=false; }); show('sheet-set'); }
 $('gear').addEventListener('click',openSettings);
 $('open-import').addEventListener('click',()=>{$('paste').value='';$('warn').style.display='none';pendingNote=null;show('sheet-import');});
 
@@ -2931,6 +3000,14 @@ $('add-btn').addEventListener('click',()=>{
     log('NOTE',(v.replace(NOTE,'').trim()||'(empty)')+'  (typed)');
     box.value=''; save();
     flash('Noted. It\u2019s in the history, not on the list.'); return;
+  }
+  /* the same rules as speech: "costco paper towels" files it at Costco, "put x in y" files x, "chips aisle 9" numbers it */
+  if(storeFirst(v)||aisleSaid(v)||filingSaid(v)){
+    box.value=''; const n0=items.length;
+    heard(v,true);
+    const it=items.length>n0?items[items.length-1]:null;
+    if(it) flash('Added '+it.name+' at '+store(it.stores[0]).name+'.');
+    draw(); save(); return;
   }
   const dupe=items.find(i=>!i.done&&key(i.name)===key(v));
   if(dupe){
@@ -3017,7 +3094,16 @@ $('bk-now').addEventListener('click',async()=>{
   flash(await backupState('by-hand')?'Backed up the list to GitHub.':'Backup failed \u2014 see the line above the buttons.');
 });
 $('bk-open').addEventListener('click',openBackups);
-$('gh-send').addEventListener('click',()=>sendLog(true,false));
+$('gh-send').addEventListener('click',async()=>{
+  const b=$('gh-send'); if(b.classList.contains('busy')) return;
+  const was=ghMeta.n, had=unsent().length;
+  b.classList.add('busy'); b.textContent='Sending…';
+  try{ await sendLog(true,false); }catch(e){}
+  for(let i=0;i<40&&ghBusy;i++) await new Promise(r=>setTimeout(r,250));      // a long log goes in several pieces
+  b.classList.remove('busy');
+  b.textContent=!ghTok?'No token saved':ghMeta.n>was?'Sent ✓  ('+(ghMeta.n-was)+(ghMeta.n-was===1?' entry)':' entries)'):!had?'Nothing new to send':'Not sent — will retry';
+  setTimeout(()=>{ b.textContent='Send history now'; },2200);
+});
 $('gh-auto').addEventListener('click',async()=>{
   ghAuto=!ghAuto;
   try{ await STORE.set(GH_AUTO_KEY,ghAuto?'1':'0'); }catch(e){}
@@ -3089,14 +3175,16 @@ function typedInVoice(){
   const box=$('v-text'), v=box.value.trim();
   if(!v){ box.focus(); return; }
   box.value='';
+  /* a typed note is whole when it is sent: it doesn't wait for "end note" the way a spoken one does */
+  if(NOTE.test(v)&&noteBuf===null){ log('typed-voice',JSON.stringify(v)); saidNote(v.replace(NOTE,'').trim()||'(empty)','typed'); return; }
   heard(v,true);
   if(voiceOn) quiet();
 }
 $('v-add').addEventListener('click',typedInVoice);
 $('v-text').addEventListener('keydown',e=>{ if(e.key==='Enter') typedInVoice(); });
 $('v-text').addEventListener('input',()=>{ if(voiceOn){ clearTimeout(quietT); } });
-$('v-text').addEventListener('focus',()=>{ if(voiceOn){ clearTimeout(quietT); } });
-$('v-text').addEventListener('blur',()=>{ if(voiceOn) quiet(); });
+/* the cursor in the box means he is typing: the mic goes off rather than listening to the room */
+$('v-text').addEventListener('focus',()=>{ if(voiceOn&&!micOff) micPause('typing'); });
 function voiceOpen(){
   voiceOn=true; spoke=0; micOff=false;
   $('v-log').innerHTML='';
@@ -3113,6 +3201,8 @@ function voiceOpen(){
 }
 function voiceClose(why){
   if(!voiceOn&&!$('voice').classList.contains('on')) return;
+  /* words still sitting in the box when Done is tapped are kept, not thrown away */
+  if($('v-text').value.trim()){ log('typed-kept','Done was tapped with text still in the box: taking it as sent'); typedInVoice(); }
   if(noteBuf!==null) endNote('closed');            // a note in progress is kept, not dropped
   const heldBack=[...document.querySelectorAll('#v-log .vitem.held')].map(e=>e.firstChild.textContent);
   voiceOn=false;
@@ -3137,7 +3227,7 @@ function micPause(why){
   rec=null;
   $('v-pulse').className='vpulse idle'; $('v-heard').textContent='';
   $('v-hint').textContent='Mic off. Tap it to talk again';
-  log('voice-pause',why+' · mic off, page stays for the questions waiting');
+  log('voice-pause',why+' · mic off, page stays');
 }
 function micResume(){
   if(!voiceOn||!micOff||!SR) return;
@@ -3149,7 +3239,7 @@ function micResume(){
 }
 $('v-pulse').addEventListener('click',()=>{ if(micOff) micResume(); else if(voiceOn&&SR) micPause('tapped'); });
 function quiet(){
-  if(micOff) return;
+  if(micOff||!voiceOn) return;
   clearTimeout(quietT);
   quietT=setTimeout(()=>{
     if(!voiceOn) return;
