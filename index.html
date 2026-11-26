@@ -149,6 +149,27 @@
   .btn{cursor:pointer;font-weight:600;}
   .primary{background:var(--ink);color:#fff;border-color:var(--ink);}
   .foot{margin-top:16px;font-size:13px;color:var(--faint);text-align:center;min-height:18px;}
+  .toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translate(-50%,14px);z-index:96;
+    max-width:min(92vw,440px);width:max-content;display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:14px;
+    background:var(--ink);color:#fff;font-size:15px;line-height:1.3;box-shadow:0 8px 24px rgba(20,30,26,.28);
+    opacity:0;pointer-events:none;transition:opacity .16s,transform .16s;}
+  .toast.on{opacity:1;transform:translate(-50%,0);pointer-events:auto;}
+  .toast button{flex:none;font:inherit;font-weight:700;color:#fff;background:rgba(255,255,255,.18);border:none;border-radius:9px;padding:7px 12px;cursor:pointer;}
+  @media (prefers-reduced-motion:reduce){ .toast{transition:none;} }
+  .mainadd{display:none;}
+  .acts{display:flex;gap:8px;margin:10px 0 12px;}
+  .acts .btn{flex:1;padding:11px 6px;font-size:15px;}
+  .mvg>summary .val{margin-left:auto;margin-right:10px;font-weight:500;color:var(--soft);font-size:14.5px;
+    max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .shopbtn{flex:none;margin:0 auto;display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 16px 0 13px;border-radius:999px;
+    border:none;cursor:pointer;font:inherit;font-size:15px;font-weight:700;color:#fff;
+    background:linear-gradient(180deg,color-mix(in srgb,var(--store) 82%,#fff),var(--store));
+    box-shadow:0 3px 0 color-mix(in srgb,var(--store) 62%,#000),0 6px 12px rgba(20,30,26,.18);
+    transform:translateY(-1px);transition:transform .08s,box-shadow .08s;}
+  .shopbtn:active{transform:translateY(2px);box-shadow:0 0 0 color-mix(in srgb,var(--store) 62%,#000),0 2px 5px rgba(20,30,26,.18);}
+  .shopbtn svg{width:19px;height:19px;}
+  .store-head h2.tight{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .store-head .grow{flex:1;display:flex;justify-content:center;min-width:0;}
 
   /* sheets */
   .scrim{position:fixed;inset:0;background:rgba(27,38,33,.34);z-index:60;opacity:0;pointer-events:none;transition:opacity .2s;}
@@ -431,11 +452,12 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
     <div class="cart-head"><h2>In the cart</h2><button class="linky" id="clear-cart">Empty cart</button></div>
     <div id="cart"></div>
   </section>
-  <div class="add">
+  <div class="add mainadd">
     <input id="new-name" placeholder="Add an item" autocomplete="off">
     <button class="btn primary" id="add-btn">Add</button>
   </div>
   <p class="foot" id="foot"></p>
+  <div class="toast" id="toast" role="status"><span id="toast-m"></span><button id="toast-u">Undo</button></div>
 </div>
 
 <div class="voice" id="voice" role="dialog" aria-modal="true" aria-label="Add by voice">
@@ -461,27 +483,34 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
 <div class="sheet" id="sheet-move" role="dialog" aria-modal="true">
   <div class="grab"></div>
   <h3 id="mv-title"></h3>
-  <div class="lab" id="lab-nums" style="margin-top:6px">Aisle number</div>
-  <div id="mv-nums"></div>
-  <div class="lab">Stores</div>
-  <p>Tap stores on or off — pick more than one if you could buy it at either.</p>
-  <div class="opts" id="mv-stores"></div>
-  <div class="lab">List</div>
-  <div class="opts" id="mv-list"></div>
-  <div class="lab" id="lab-aisle">Aisle</div>
-  <div class="opts" id="mv-cats"></div>
-  <div class="inline" id="mv-ais" style="display:none;margin-top:9px">
-    <input id="mv-ais-name" placeholder="New aisle name" autocomplete="off">
-    <button class="btn primary" id="mv-ais-save">Save</button>
+  <div class="acts">
+    <button class="btn" id="mv-snooze">Snooze</button>
+    <button class="btn" id="mv-park">Park</button>
+    <button class="btn" id="mv-delete">Remove</button>
   </div>
-  <div class="inline" id="mv-new" style="display:none;margin-top:9px">
-    <input id="mv-new-name" placeholder="Store name" autocomplete="off">
-    <button class="btn primary" id="mv-new-save">Save</button>
-  </div>
-  <div class="stack" style="margin-top:14px">
-    <button class="btn" id="mv-snooze">Snooze — hide it for now</button>
-    <button class="btn" id="mv-delete">Remove from the list (not bought)</button>
-  </div>
+  <details class="grp mvg" id="lab-nums"><summary>Aisle number<span class="val" id="mv-s-num"></span></summary>
+    <div id="mv-nums"></div>
+  </details>
+  <details class="grp mvg"><summary>Stores<span class="val" id="mv-s-stores"></span></summary>
+    <p>Tap stores on or off — pick more than one if you could buy it at either.</p>
+    <div class="opts" id="mv-stores"></div>
+    <div class="inline" id="mv-new" style="display:none;margin-top:9px">
+      <input id="mv-new-name" placeholder="Store name" autocomplete="off">
+      <button class="btn primary" id="mv-new-save">Save</button>
+    </div>
+  </details>
+  <details class="grp mvg"><summary>List<span class="val" id="mv-s-list"></span></summary>
+    <div class="opts" id="mv-list"></div>
+  </details>
+  <details class="grp mvg" id="lab-aisle"><summary>Aisle<span class="val" id="mv-s-cat"></span></summary>
+    <div class="opts" id="mv-cats"></div>
+    <div class="inline" id="mv-ais" style="display:none;margin-top:9px">
+      <input id="mv-ais-name" placeholder="New aisle name" autocomplete="off">
+      <button class="btn primary" id="mv-ais-save">Save</button>
+    </div>
+  </details>
+</div>
+
 </div>
 
 <div class="sheet" id="sheet-import" role="dialog" aria-modal="true">
@@ -610,7 +639,7 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
     </div>
   </details>
 
-  <p class="buildstamp">Build 29 · 26 Nov 2026</p>
+  <p class="buildstamp">Build 30 · 26 Nov 2026</p>
 </div>
 
 <script>
@@ -619,7 +648,7 @@ body.focused .store-head{display:none;}      /* the blue bar is the header now *
    stale page out of the browser's own cache — is not allowed to save, sync or
    send anything, and goes to fetch the current version instead. On 24 Nov an
    old Build 20 page did exactly that and wiped the activity log's numbering. */
-const BUILD_N=29, BUILD_KEY='shop-build-n';
+const BUILD_N=30, BUILD_KEY='shop-build-n';
 let STALE=false;
 function checkStale(){
   try{
@@ -644,6 +673,7 @@ const KEY='shop-app-2';
 const TICK='<svg viewBox="0 0 20 20" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l4 4 8-9"/></svg>';
 const CARET='<svg class="caret" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l5 5 5-5"/></svg>';
 const PARK='<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.6" y="4.2" width="14.8" height="3.6" rx="1"/><path d="M4.2 7.8v7a1.4 1.4 0 0 0 1.4 1.4h8.8a1.4 1.4 0 0 0 1.4-1.4v-7"/><path d="M8.2 11h3.6"/></svg>';
+const CART='<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2.2 3.2h2.3l2 9.3h8.4l1.7-6.6H5.3"/><circle cx="7.6" cy="15.9" r="1.25" fill="currentColor" stroke="none"/><circle cx="14" cy="15.9" r="1.25" fill="currentColor" stroke="none"/></svg>';
 const EYE='<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M1.8 10S4.7 4.8 10 4.8 18.2 10 18.2 10 15.3 15.2 10 15.2 1.8 10 1.8 10z"/><circle cx="10" cy="10" r="2.2"/></svg>';
 const UPI='<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l5-5 5 5"/></svg>';
 const DNI='<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7.5l5 5 5-5"/></svg>';
@@ -1946,7 +1976,25 @@ function showWarn(n){
 }
 
 let flashT;
-function flash(m){const f=$('foot');f.textContent=m;clearTimeout(flashT);flashT=setTimeout(footIdle,7000);}
+/* a message is shown where he is looking, not at the foot of a long list;
+   when the thing just done can be taken back, it carries an Undo */
+let undoFn=null;
+function flash(m,undo){
+  const t=$('toast'); $('toast-m').textContent=m; undoFn=undo||null;
+  $('toast-u').style.display=undo?'':'none';
+  t.classList.add('on'); clearTimeout(flashT);
+  flashT=setTimeout(()=>{ t.classList.remove('on'); undoFn=null; },undo?7000:4500);
+}
+$('toast-u').addEventListener('click',()=>{ const f=undoFn; undoFn=null; $('toast').classList.remove('on'); if(f) f(); });
+/* taking something off without buying it, the one way everywhere, and it can be taken back */
+function removeItem(it,how){
+  const copy=JSON.parse(JSON.stringify(it));
+  items=items.filter(i=>i.id!==it.id);
+  held=held.filter(h=>h.id!==it.id);
+  log('delete',it.name+' (removed, not bought) · '+how);
+  draw(); save();
+  flash('Removed '+it.name+'.',()=>{ copy.id=newId(); items.push(copy); log('undo','put '+copy.name+' back'); draw(); save(); });
+}
 function footIdle(){
   const n=items.filter(i=>live(i)).length;
   $('foot').textContent=n?n+' left to buy':'Nothing left here';
@@ -2007,6 +2055,12 @@ function makeRow(it,inCart,sid,flat){
     z.setAttribute('aria-label','Snooze '+it.name);
     z.addEventListener('click',e=>{e.stopPropagation();snoozeItem(it,row);});
     row.appendChild(z);
+  }
+  if(!inCart){
+    const x=document.createElement('button');
+    x.className='rowbtn trash'; x.innerHTML=TRASH; x.setAttribute('aria-label','Remove '+it.name+' — not bought');
+    x.addEventListener('click',e=>{ e.stopPropagation(); removeItem(it,'from the row'); });
+    row.appendChild(x);
   }
   if(inCart){
     const m=document.createElement('button');
@@ -2086,7 +2140,7 @@ function draw(){
     $('f-fold').addEventListener('click',foldAll);
     $('f-gear').addEventListener('click',openSettings);
     $('unfocus').addEventListener('click',()=>{
-      log('focus','left focus on '+s.name+' after '+secs(Date.now()-focusAt));
+      log('focus','left focus on '+s.name+(focusAt?' after '+secs(Date.now()-focusAt):''));
       focus=null;draw();save();});
   } else fb.style.display='none';
 
@@ -2108,15 +2162,17 @@ function draw(){
 
     if(!f&&stores.filter(x=>items.some(i=>i.stores.includes(x.id)&&live(i))).length>1){
       const eye=document.createElement('button');
-      eye.className='nap'; eye.style.width='32px'; eye.innerHTML=EYE;
+      eye.className='shopbtn'; eye.innerHTML=CART+'Shop';
       eye.setAttribute('aria-label','Show only '+s.name);
+      head.querySelector('h2').classList.add('tight');
+      const mid=document.createElement('span'); mid.className='grow'; mid.appendChild(eye);
+      head.insertBefore(mid,head.querySelector('.num'));
       eye.addEventListener('click',e=>{
         e.stopPropagation();
         focus=s.id; focusAt=Date.now(); shut['S'+s.id]=false;
         log('focus','focused on '+s.name+', '+items.filter(i=>i.stores.includes(s.id)&&live(i)).length+' items');
         draw(); save();
       });
-      head.appendChild(eye);
     }
 
     const aisles=route.filter(c=>mine.some(i=>c==='Other'?(i.cat===c||!route.includes(i.cat)):i.cat===c));
@@ -2215,13 +2271,14 @@ function drawSnoozed(host){
   nap.forEach(it=>{
     const r=document.createElement('div'); r.className='row';
     r.innerHTML='<button class="tick" style="color:var(--faint)"><span class="label">'+esc(it.name)+'</span></button>';
-    r.querySelector('.tick').addEventListener('click',()=>{it.snoozed=false;draw();save();flash('“'+it.name+'” is back on the list.');});
+    r.querySelector('.tick').addEventListener('click',()=>{it.snoozed=false;log('wake',it.name+' (tapped in the snoozed section)');draw();save();flash('“'+it.name+'” is back on the list.');});
     const pk=document.createElement('button');
     pk.className='nap'; pk.style.width='32px'; pk.innerHTML=PARK;
     pk.setAttribute('aria-label','Park '+it.name);
     pk.addEventListener('click',e=>{
       e.stopPropagation();
       it.home=listOf(it); it.list='parked'; it.snoozed=false;
+      log('park',it.name+' → Parked, from the snoozed section');
       draw(); save(); flash('“'+it.name+'” moved to Parked.');
     });
     r.appendChild(pk);
@@ -2229,7 +2286,7 @@ function drawSnoozed(host){
   });
   const all=document.createElement('div'); all.className='row';
   all.innerHTML='<button class="tick" style="color:var(--soft);font-weight:600"><span class="label">Wake all '+nap.length+'</span></button>';
-  all.querySelector('.tick').addEventListener('click',()=>{nap.forEach(i=>i.snoozed=false);draw();save();});
+  all.querySelector('.tick').addEventListener('click',()=>{nap.forEach(i=>i.snoozed=false);log('wake','all '+nap.length+' snoozed items');draw();save();});
   body.appendChild(all);
   wrap.appendChild(body); host.appendChild(wrap);
 }
@@ -2729,9 +2786,17 @@ function drawTail(){
 
 /* ---------- move sheet ---------- */
 function openMove(id){
+  const fresh=mvId!==id||!$('sheet-move').classList.contains('on');
   mvId=id; const it=items.find(x=>x.id===id);
   if(!it){closeSheets();return;}
   $('mv-title').textContent=it.name;
+  if(fresh) document.querySelectorAll('#sheet-move details.mvg').forEach(d=>{ d.open=d.id==='lab-nums'; });   // a different item: folded again, bar the one-line aisle number
+  /* each folded group says what it is set to, so most of the time nothing needs opening */
+  $('mv-s-num').textContent=it.stores.map(sid=>{ const a=aisleFor(it,sid); return a?(a.sure?a.n:a.n+'?')+(it.stores.length>1?' '+store(sid).name:''):null; }).filter(Boolean).join(', ')||'not set';
+  $('mv-s-stores').textContent=it.stores.map(sid=>store(sid).name).join(', ');
+  $('mv-s-list').textContent=listName(listOf(it));
+  $('mv-s-cat').textContent=it.cat;
+  $('mv-park').style.display=listOf(it)==='parked'?'none':'';
   const so=$('mv-stores'); so.innerHTML='';
   stores.forEach(s=>{
     const on=it.stores.includes(s.id);
@@ -2856,8 +2921,12 @@ $('mv-snooze').addEventListener('click',()=>{
   closeSheets(); snoozeItem(it);
 });
 
-$('mv-delete').addEventListener('click',()=>{const it=items.find(i=>i.id===mvId); if(it) log('delete',it.name+' (removed, not bought)');
-  items=items.filter(i=>i.id!==mvId);closeSheets();draw();save(); if(it) flash('Removed '+it.name+' — not counted as bought.');});
+$('mv-delete').addEventListener('click',()=>{ const it=items.find(i=>i.id===mvId); closeSheets(); if(it) removeItem(it,'from its sheet'); });
+$('mv-park').addEventListener('click',()=>{
+  const it=items.find(i=>i.id===mvId); if(!it) return;
+  it.home=listOf(it); it.list='parked'; it.snoozed=false; remember(it);
+  log('park',it.name+' → Parked, from its sheet'); closeSheets(); draw(); save(); flash(it.name+' moved to Parked.');
+});
 
 /* ---------- settings ---------- */
 function drawRoute(){
