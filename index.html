@@ -304,10 +304,12 @@ body.compact .store-head{height:50px;}
 .histrow .hn{flex:1;min-width:0;overflow-wrap:anywhere;font-weight:500;}
 .histrow .hn em{font-style:normal;font-size:12px;font-weight:600;color:var(--faint);margin-left:8px;white-space:nowrap;}
 .histrow .hn em.d{color:var(--warn);}
-.histrow .hc,.histhead .hc{flex:none;width:44px;text-align:right;font-size:13.5px;color:var(--soft);font-variant-numeric:tabular-nums;white-space:nowrap;}
-.histrow .hc.wide,.histhead .hc.wide{width:88px;}
+.histrow{gap:6px;}
+.histrow .hn{overflow-wrap:break-word;}
+.histrow .hc,.histhead .hc{flex:none;width:34px;text-align:right;font-size:12.5px;color:var(--soft);font-variant-numeric:tabular-nums;white-space:nowrap;}
+.histrow .hc.wide,.histhead .hc.wide{width:74px;}
 .histrow .hc b{font-size:16px;color:var(--ink);font-weight:700;}
-.histhead{display:flex;align-items:center;gap:10px;padding:12px 14px 8px 16px;border-bottom:1px solid var(--line);}
+.histhead{display:flex;align-items:center;gap:6px;padding:12px 14px 8px 16px;border-bottom:1px solid var(--line);}
 .histhead .hn{flex:1;}
 .histhead span{font-size:12.5px;font-weight:600;color:var(--faint);}
 .histtop{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:18px 2px 12px;}
@@ -2866,7 +2868,7 @@ function drawHistory(host){
     return {k:k,n:t.length,last:last,every:every,due:every?last/every:0}; })
     .sort((a,b)=>b.n-a.n||a.last-b.last);
   const box=document.createElement('div'); box.className='flat hist';
-  box.innerHTML='<div class="histhead"><span class="hn">Item</span><span class="hc">Bought</span><span class="hc wide">How often</span><span class="hc wide">Last</span></div>';
+  box.innerHTML='<div class="histhead"><span class="hn">Item</span><span class="hc">Times</span><span class="hc wide">How often</span><span class="hc wide">Last</span></div>';
   rows.forEach(r=>{
     const live=items.some(i=>!i.done&&norm(i.name)===r.k), nm=cap(r.k);
     const d=document.createElement('button');
