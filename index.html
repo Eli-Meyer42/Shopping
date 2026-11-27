@@ -713,6 +713,21 @@ body.compact .store-head{height:52px;}
     <div id="notes-list"></div>
   </details>
 
+  <details class="grp"><summary>AI<span class="val" id="ai-val" style="margin-left:auto;margin-right:10px;font-weight:500;color:var(--soft);font-size:14.5px"></span></summary>
+    <p style="margin-bottom:9px" id="ai-state">No key saved. Nothing in the app uses AI yet.</p>
+    <div class="inline">
+      <input id="ai-key" type="password" placeholder="Anthropic API key (sk-ant-…)" autocomplete="off" spellcheck="false">
+      <button class="btn primary" id="ai-save">Save</button>
+    </div>
+    <div class="stack" style="margin-top:9px">
+      <button class="btn" id="ai-test">Test the key</button>
+      <button class="btn" id="ai-clear">Remove the key from this phone</button>
+    </div>
+    <p class="hint" style="margin-top:9px">The key stays on this phone only. It is never written into the app's code,
+      never synced to your other devices, never sent to GitHub and never put in the activity log. It is only ever
+      sent to Anthropic.</p>
+  </details>
+
   <details class="grp"><summary>What it's learned</summary>
     <p style="margin-bottom:9px" id="brainnote">Nothing yet.</p>
     <div class="stack">
@@ -738,7 +753,7 @@ body.compact .store-head{height:52px;}
     </div>
   </details>
 
-  <p class="buildstamp">Build 33 · 27 Nov 2026</p>
+  <p class="buildstamp">Build 34 · 27 Nov 2026</p>
 </div>
 
 <script>
@@ -747,7 +762,7 @@ body.compact .store-head{height:52px;}
    stale page out of the browser's own cache — is not allowed to save, sync or
    send anything, and goes to fetch the current version instead. On 24 Nov an
    old Build 20 page did exactly that and wiped the activity log's numbering. */
-const BUILD_N=33, BUILD_KEY='shop-build-n';
+const BUILD_N=34, BUILD_KEY='shop-build-n';
 let STALE=false;
 function checkStale(){
   try{
@@ -1964,7 +1979,7 @@ async function load(){
   document.body.classList.toggle('compact',compact);
   $('keep-url').value=keepUrl;
   await loadLog();
-  await loadGh();
+  await loadGh(); aiLoad();
   try{ tips=JSON.parse((await STORE.get('shop-tips-1'))||'{}')||{}; }catch(e){ tips={}; }
   logOpen();
   ['new-name','paste','aisle-new','keep-url','mv-new-name','mv-ais-name'].forEach(watchTyping);
@@ -3222,6 +3237,59 @@ function drawSetTop(){
     box.querySelector('.stack').appendChild(b);
   });
 }
+/* ---------- AI: the key, and one way to ask ----------
+   The key is kept the way the GitHub token is: in its own slot on this device.
+   It is not part of the synced state, is never logged, and leaves the phone
+   only in a request to Anthropic. Nothing calls askAI() yet except the test;
+   features that want it check aiKey first and work without it. */
+const AI_KEY='shop-ai-1', AI_MODEL='claude-haiku-5-5';
+let aiKey='', aiMeta={ok:0,err:''};
+async function aiLoad(){ try{ aiKey=(await STORE.get(AI_KEY))||''; }catch(e){} aiPaint(); }
+function aiPaint(){
+  if(!$('ai-state')) return;
+  $('ai-val').textContent=aiKey?(aiMeta.err?'problem':'key saved'):'off';
+  $('ai-state').textContent=!aiKey?'No key saved. Nothing in the app uses AI yet.'
+    :aiMeta.err?'Key saved, but the last test failed: '+aiMeta.err
+    :aiMeta.ok?'Key saved and working (tested '+new Date(aiMeta.ok).toLocaleString([], {hour:'numeric',minute:'2-digit',day:'numeric',month:'short'})+'). Nothing in the app uses AI yet.'
+    :'Key saved, ending …'+aiKey.slice(-4)+'. Tap “Test the key” to check it works.';
+}
+async function askAI(prompt,maxTokens){
+  if(!aiKey) throw new Error('no key saved');
+  const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+    headers:{'content-type':'application/json','x-api-key':aiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify({model:AI_MODEL,max_tokens:maxTokens||200,messages:[{role:'user',content:prompt}]})});
+  let j=null; try{ j=await r.json(); }catch(e){}
+  if(!r.ok){
+    const m=(j&&j.error&&j.error.message)||'';
+    throw new Error(r.status===401?'Anthropic refused the key (wrong, or deleted)'
+      :/credit balance/i.test(m)?'the account has no credit — add some in the Anthropic console'
+      :r.status===404?'the model “'+AI_MODEL+'” isn’t available to this key'
+      :r.status===429?'too many requests, or the spending limit is reached'
+      :'Anthropic answered '+r.status+(m?': '+m.slice(0,120):''));
+  }
+  return ((j&&j.content)||[]).map(c=>c.text||'').join('').trim();
+}
+$('ai-save').addEventListener('click',async()=>{
+  const k=$('ai-key').value.trim(); $('ai-key').value='';
+  if(!k){ flash('Paste the key into the box first.'); return; }
+  aiKey=k; aiMeta={ok:0,err:''}; try{ await STORE.set(AI_KEY,k); }catch(e){}
+  log('ai-setup','key saved on this device'); aiPaint(); flash('Key saved on this phone. Testing it…'); $('ai-test').click();
+});
+$('ai-clear').addEventListener('click',async()=>{
+  aiKey=''; aiMeta={ok:0,err:''}; try{ await STORE.set(AI_KEY,''); }catch(e){}
+  log('ai-setup','key removed from this device'); aiPaint(); flash('Key removed from this phone.');
+});
+$('ai-test').addEventListener('click',async()=>{
+  const b=$('ai-test'); if(b.classList.contains('busy')) return;
+  if(!aiKey){ flash('Save a key first.'); return; }
+  b.classList.add('busy'); b.textContent='Asking Anthropic…';
+  try{ const a=await askAI('Reply with the single word: ready',12);
+    aiMeta={ok:Date.now(),err:''}; log('ai-test','worked — it answered “'+a.slice(0,30)+'”'); b.textContent='Working ✓'; }
+  catch(e){ const why=/Failed to fetch|NetworkError|Load failed/i.test(e.message)?'no connection':e.message;
+    aiMeta={ok:0,err:why}; log('ai-test','FAILED: '+why); b.textContent='Not working'; }
+  b.classList.remove('busy'); aiPaint();
+  setTimeout(()=>{ b.textContent='Test the key'; },2500);
+});
 function drawNotes(){
   const ns=actlog.filter(e=>e.k==='NOTE').reverse();
   $('notes-n').textContent=ns.length||'';
@@ -3231,7 +3299,7 @@ function drawNotes(){
   $('notes-list').innerHTML=ns.length?ns.map(e=>'<div class="noterow"><span class="when">'+esc(day(e.t))+'</span>'+esc(String(e.d).replace(/\s*\((?:said without “note”|typed|heard as “no …”|[^()]*)\)\s*$/,''))+'</div>').join('')
     :'<p>No notes yet. Say or type “note …” on the add page.</p>';
 }
-function openSettings(){ drawRoute(); wipeDisarm(); drawSetTop(); drawNotes(); document.querySelectorAll('#sheet-set details.grp').forEach(d=>{ d.open=false; }); show('sheet-set'); }
+function openSettings(){ drawRoute(); wipeDisarm(); drawSetTop(); drawNotes(); aiPaint(); document.querySelectorAll('#sheet-set details.grp').forEach(d=>{ d.open=false; }); show('sheet-set'); }
 $('gear').addEventListener('click',openSettings);
 $('open-import').addEventListener('click',()=>{$('paste').value='';$('warn').style.display='none';pendingNote=null;show('sheet-import');});
 
