@@ -302,6 +302,17 @@ body.compact .store-head{height:50px;}
   background:none;border:none;padding:13px 14px 13px 16px;font:inherit;font-size:16px;color:var(--ink);cursor:pointer;}
 .histrow + .histrow::before{content:'';position:absolute;top:0;left:16px;right:14px;height:1px;background:var(--hair);}
 .histrow .hn{flex:1;min-width:0;overflow-wrap:anywhere;font-weight:500;}
+.histrow .hn em{font-style:normal;font-size:12px;font-weight:600;color:var(--faint);margin-left:8px;white-space:nowrap;}
+.histrow .hn em.d{color:var(--warn);}
+.histrow .hc,.histhead .hc{flex:none;width:44px;text-align:right;font-size:13.5px;color:var(--soft);font-variant-numeric:tabular-nums;white-space:nowrap;}
+.histrow .hc.wide,.histhead .hc.wide{width:88px;}
+.histrow .hc b{font-size:16px;color:var(--ink);font-weight:700;}
+.histhead{display:flex;align-items:center;gap:10px;padding:12px 14px 8px 16px;border-bottom:1px solid var(--line);}
+.histhead .hn{flex:1;}
+.histhead span{font-size:12.5px;font-weight:600;color:var(--faint);}
+.histtop{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:18px 2px 12px;}
+.histtop h2{font-size:24px;}
+.histtop .btn{flex:none;width:auto;padding:9px 14px;font-size:14.5px;}
 .histrow .hm{font-size:13px;color:var(--faint);white-space:nowrap;}
 .histrow .hp{width:22px;text-align:center;color:var(--soft);font-weight:600;}
 .histrow.due .hm{color:var(--warn);font-weight:600;}
@@ -515,9 +526,9 @@ body.compact .store-head{height:52px;}
     </div>
     <div class="tabs">
       <button id="tab-g">Groceries <em id="n-g"></em></button>
-      <button id="tab-e">The rest <em id="n-e"></em></button>
+      <button id="tab-e">General <em id="n-e"></em></button>
       <button id="tab-p">Parked <em id="n-p"></em></button>
-      <button id="tab-h">History <em id="n-h"></em></button>
+      <button id="tab-h" style="display:none">History <em id="n-h"></em></button>
     </div>
     <div class="focusbar" id="focusbar" style="display:none"></div>
     <div class="focusbar warnbar" id="alertbar" style="display:none"></div>
@@ -626,6 +637,7 @@ body.compact .store-head{height:52px;}
   <h3>Settings</h3>
 
   <div class="syncrow" style="margin-top:2px"><span class="syncdot off" id="syncdot"></span><span id="syncword">Not connected</span></div>
+  <div class="stack" style="margin-top:12px"><button class="btn" id="open-hist">Buying history</button></div>
   <div id="set-top"></div>
 
   <details class="grp"><summary>Display</summary>
@@ -724,7 +736,7 @@ body.compact .store-head{height:52px;}
     </div>
   </details>
 
-  <p class="buildstamp">Build 32 · 26 Nov 2026</p>
+  <p class="buildstamp">Build 33 · 27 Nov 2026</p>
 </div>
 
 <script>
@@ -733,7 +745,7 @@ body.compact .store-head{height:52px;}
    stale page out of the browser's own cache — is not allowed to save, sync or
    send anything, and goes to fetch the current version instead. On 24 Nov an
    old Build 20 page did exactly that and wiped the activity log's numbering. */
-const BUILD_N=32, BUILD_KEY='shop-build-n';
+const BUILD_N=33, BUILD_KEY='shop-build-n';
 let STALE=false;
 function checkStale(){
   try{
@@ -1170,6 +1182,9 @@ const rowName=r=>{const n=r.querySelector('.label,.nm');
 let lastTap=0;
 const where=()=>(tab!=='grocery'?'  ['+tab+']':'')+(focusOn()?'  [focus: '+store(focus).name+']':'');
 document.addEventListener('click',e=>{
+  const sm=e.target.closest('summary');
+  if(sm){ const g=lastTap?'  (+'+secs(Date.now()-lastTap)+')':''; lastTap=Date.now();
+    return log('TAP','section: '+(sm.childNodes[0].textContent||'').trim()+(sm.parentNode.open?' (closing)':' (opening)')+g); }
   const el=e.target.closest('button,.row,.store-head,.aisle-head,.opt,.chip,label,.rt,.vitem,.scrim,input,textarea');
   const gap=lastTap?'  (+'+secs(Date.now()-lastTap)+')':'';
   lastTap=Date.now();
@@ -2191,7 +2206,7 @@ function flip(id,row,inCart,sid){
 const listOf=i=>i.list==='errand'?'errand':i.list==='parked'?'parked':'grocery';
 /* The second list is everything that isn't groceries. Inside the app it is still
    called 'errand' (that is what is saved); this is the only place its name lives. */
-const ELSE='The rest';
+const ELSE='General';
 const listName=l=>l==='errand'?ELSE:l==='parked'?'Parked':'Groceries';
 const inTab=i=>listOf(i)===tab;
 /* focused on one store: everything else gets out of the way */
@@ -2363,6 +2378,9 @@ function drawSnoozed(host){
     r.innerHTML='<button class="tick" style="color:var(--faint)"><span class="label">'+esc(it.name)+
       (left===null?'':'<span class="when">'+(left<=0?'asking now':left<1?'asks after this shop':'asks '+fmtDays(left))+'</span>')+'</span></button>';
     r.querySelector('.tick').addEventListener('click',()=>{napWoke(it,'tapped in the snoozed section');draw();save();flash('“'+it.name+'” is back on the list.');});
+    const rm=document.createElement('button');
+    rm.className='rowbtn trash'; rm.innerHTML=TRASH; rm.setAttribute('aria-label','Remove '+it.name+' — not bought');
+    rm.addEventListener('click',e=>{ e.stopPropagation(); removeItem(it,'from the snoozed section'); });
     const pk=document.createElement('button');
     pk.className='nap'; pk.style.width='32px'; pk.innerHTML=PARK;
     pk.setAttribute('aria-label','Park '+it.name);
@@ -2372,7 +2390,7 @@ function drawSnoozed(host){
       log('park',it.name+' → Parked, from the snoozed section');
       draw(); save(); flash('“'+it.name+'” moved to Parked.');
     });
-    r.appendChild(pk);
+    r.appendChild(pk); r.appendChild(rm);
     body.appendChild(r);
   });
   const all=document.createElement('div'); all.className='row';
@@ -2716,7 +2734,12 @@ function contentFixes(){
   if(!patches.fix27){ patches.fix27=1; fixUps27(); ran=true; }
   if(!patches.fix29){ patches.fix29=1; fixUps29(); ran=true; }
   if(!patches.fix31){ patches.fix31=1; fixUps31(); ran=true; }
+  if(!patches.fix33){ patches.fix33=1; fixUps33(); ran=true; }
   return ran;
+}
+function fixUps33(){
+  const junk=items.filter(i=>!i.done&&norm(i.name)==='shop and');
+  if(junk.length){ items=items.filter(i=>junk.indexOf(i)<0); log('tidy','took “Shop and” off the list: it was a fragment of a spoken note, not an item'); }
 }
 function fixUps31(){
   /* the sign says "Kosher"; said aloud it is still "kosher market", so "kosher salt" stays salt */
@@ -2826,38 +2849,43 @@ function moveAisle(sid,cat,dir){
 }
 
 /* what's been bought before, and how often */
+/* What he buys, how many times, how often, and when last. One line each, most
+   bought first. It is a place to look something up, so it lives behind a
+   button in Settings rather than in the row of lists. */
 function drawHistory(host){
+  const top=document.createElement('div'); top.className='histtop';
+  top.innerHTML='<h2>Buying history</h2><button class="btn" id="hist-back">Back to the list</button>';
+  host.appendChild(top);
+  top.querySelector('#hist-back').addEventListener('click',()=>goTab('grocery'));
   const names=Object.keys(bought);
   if(!names.length){
-    host.innerHTML='<p class="hint" style="margin-top:22px">Nothing bought yet. '+
-      'Check items off and this fills in \u2014 how often you buy each thing, and when you last did.</p>';
-    return;
+    const p=document.createElement('p'); p.className='hint'; p.style.marginTop='16px';
+    p.textContent='Nothing bought yet. Each thing you check off is counted here.'; host.appendChild(p); return;
   }
-  const rows=names.map(k=>{
-    const t=bought[k], last=(Date.now()-t[t.length-1])/86400000, every=cadence(k);
-    return {k:k, n:t.length, last:last, every:every,
-            due: every? last/every : 0};
-  }).sort((a,b)=>b.due-a.due||a.last-b.last);
-
+  const rows=names.map(k=>{ const t=bought[k], last=(Date.now()-t[t.length-1])/86400000, every=cadence(k);
+    return {k:k,n:t.length,last:last,every:every,due:every?last/every:0}; })
+    .sort((a,b)=>b.n-a.n||a.last-b.last);
   const box=document.createElement('div'); box.className='flat hist';
+  box.innerHTML='<div class="histhead"><span class="hn">Item</span><span class="hc">Bought</span><span class="hc wide">How often</span><span class="hc wide">Last</span></div>';
   rows.forEach(r=>{
-    const live=items.some(i=>!i.done&&norm(i.name)===r.k);
+    const live=items.some(i=>!i.done&&norm(i.name)===r.k), nm=cap(r.k);
     const d=document.createElement('button');
-    d.className='histrow'+(r.every&&r.due>=1?' due':'');
-    const when=r.last<1?'today':r.last<2?'yesterday':Math.round(r.last)+'d ago';
-    const how=r.every?('about every '+Math.round(r.every)+'d'):(r.n+'\u00d7');
-    d.innerHTML='<span class="hn">'+esc(r.k.replace(/^\w/,c=>c.toUpperCase()))+'</span>'+
-      '<span class="hm">'+when+' \u00b7 '+how+'</span>'+
-      '<span class="hp">'+(live?'\u2713':'+')+'</span>';
-    d.title=live?'Already on the list':'Add it back';
+    d.className='histrow'+(r.every&&r.due>=1.1&&!live?' due':'');
+    const when=r.last<1?'today':r.last<2?'yesterday':Math.round(r.last)+' days ago';
+    const how=r.every?'every '+Math.round(r.every)+' days':'—';
+    d.innerHTML='<span class="hn">'+esc(nm)+(live?'<em>on the list</em>':(r.every&&r.due>=1.1?'<em class="d">due</em>':''))+'</span>'+
+      '<span class="hc"><b>'+r.n+'</b>×</span><span class="hc wide">'+how+'</span><span class="hc wide">'+when+'</span>';
+    d.setAttribute('aria-label',nm+': bought '+r.n+' time'+(r.n===1?'':'s')+', '+(r.every?how+', ':'')+'last '+when+(live?'. Already on the list':'. Tap to add'));
     d.addEventListener('click',()=>{
-      if(live){ log('history-tap',r.k+' is already on the list'); flash(r.k.replace(/^\w/,c=>c.toUpperCase())+' is already on the list.'); return; }
-      addItem(r.k.replace(/^\w/,c=>c.toUpperCase()),true);
-      log('history-add',r.k); draw(); save(); flash('Added '+r.k+'.');
+      if(live){ log('history-tap',r.k+' is already on the list'); flash(nm+' is already on the list.'); return; }
+      addItem(nm,true); log('history-add',r.k); draw(); save(); flash('Added '+nm+' to the list.');
     });
     box.appendChild(d);
   });
   host.appendChild(box);
+  const f=document.createElement('p'); f.className='hint'; f.style.margin='12px 4px 0';
+  f.textContent='Tap a line to put that item back on the list. “How often” appears once something has been bought on two different days.';
+  host.appendChild(f);
 }
 
 function drawParked(host){
@@ -3280,6 +3308,7 @@ $('tab-g').addEventListener('click',()=>goTab('grocery'));
 $('tab-e').addEventListener('click',()=>goTab('errand'));
 $('tab-p').addEventListener('click',()=>goTab('parked'));
 $('tab-h').addEventListener('click',()=>goTab('history'));
+$('open-hist').addEventListener('click',()=>{ closeSheets(); goTab('history'); scrollTo(0,0); });
 
 $('clear-cart').addEventListener('click',()=>{
   const inCartNow=i=>i.done&&inTab(i)&&inFocus(i);     // exactly what the cart lists
@@ -3459,6 +3488,14 @@ function voiceClose(why){
 /* a few seconds of nothing ends the session */
 /* A note is thinking out loud, so it gets far longer before silence ends it. */
 const NOTE_QUIET_MS=25000;
+let noteLoose=false;                // the note in progress began without the word "note"
+function looseNote(t,typed){
+  if(typed||!voiceOn||micOff){ saidNote(t,'said without \u201cnote\u201d'); return; }
+  noteLoose=true; noteBuf=t;
+  noteEl=vlog('\u201c'+esc(noteBuf)+'\u201d<span class="where">taken as a note \u2014 keep talking, it stays one note until you pause</span>','note live');
+  $('v-hint').textContent='Taking a note\u2026 take your time';
+  log('note-start',JSON.stringify(t)+' (not announced: a sentence, so a note)');
+}
 let noteBuf=null, noteEl=null;      // the note being dictated, and its row on screen
 let micOff=false;
 function micPause(why){
@@ -3489,7 +3526,7 @@ function quiet(){
     /* questions waiting: the mic goes off, the page stays, so they can be answered */
     if(held.length||hunchOn||hunch()){ micPause('silence'); return; }
     flash('Stopped listening — it went quiet.'); voiceClose('silence');
-  },noteBuf!==null?NOTE_QUIET_MS:QUIET_MS);
+  },noteBuf!==null?(noteLoose?12000:NOTE_QUIET_MS):QUIET_MS);
 }
 function endNote(why){
   if(noteBuf===null) return;
@@ -3498,7 +3535,7 @@ function endNote(why){
   if(noteEl){ noteEl.classList.remove('live');
     noteEl.innerHTML='\u201c'+esc(full||'(nothing said)')+'\u201d<span class="where">note saved'+
       (why==='silence'?' \u00b7 went quiet':'')+'</span>'; }
-  noteBuf=null; noteEl=null; save();
+  noteBuf=null; noteEl=null; noteLoose=false; save();
   $('v-hint').textContent='Listening\u2026 say \u201cdone\u201d when finished';
 }
 function listen(){
@@ -3743,7 +3780,7 @@ function placeSaid(t){
   if(!n) return null;
   const st=stores.find(x=>norm(x.name)===n||norm(x.name).split(' ')[0]===n);
   if(st) return {store:st.id};
-  if(n===norm(ELSE)||n==='rest'||n==='errands'||n==='errand') return {list:'errand'};
+  if(n===norm(ELSE)||n==='rest'||n==='general'||n==='errands'||n==='errand') return {list:'errand'};
   if(n==='groceries'||n==='grocery') return {list:'grocery'};
   const aisles=route.concat(ALL.filter(a=>route.indexOf(a)<0));
   const a=aisles.find(c=>norm(c)===n)||aisles.find(c=>norm(c).split(' ').some(w=>w===n||sing(w)===sing(n)))||
@@ -3777,6 +3814,10 @@ function heard(text,typed){
 
   /* Dictating a note: everything said is the note until "end note", a stop
      word, or a long silence. Nothing said in here can become a shopping item. */
+  /* A note he didn't announce (a sentence, taken as a note) carries on the same
+     way — the pauses in ordinary talking used to chop it into six. The one
+     way out besides silence: a short phrase that is plainly shopping. */
+  if(noteBuf!==null&&noteLoose&&!typed&&words(text)<=3&&splitSpoken(norm(text)).every(isKnown)){ endNote('an item was said'); }
   if(noteBuf!==null){
     if(END_NOTE.test(norm(text))){ endNote('said'); quiet(); return; }
     if(STOP_WORDS.test(norm(text))){
@@ -3788,6 +3829,7 @@ function heard(text,typed){
     quiet(); return;
   }
   if(NOTE.test(text)){
+    noteLoose=false;
     noteBuf=text.replace(NOTE,'').trim();
     noteEl=vlog('\u201c'+esc(noteBuf)+'\u201d<span class="where">still listening \u2014 say \u201cend note\u201d when you\u2019re finished</span>','note live');
     $('v-hint').textContent='Taking a note\u2026 take your time';
@@ -3850,7 +3892,7 @@ function heard(text,typed){
   const explicit=PRE.test(text.trim());        // "add…", "buy…": said on purpose
   const lines=parseNote(text);
   /* too long or too tangled to be an item: say so, instead of doing nothing */
-  if(!lines.length){ log('parsed','a sentence, not an item'); saidNote(text.trim(),'said without \u201cnote\u201d'); quiet(); return; }
+  if(!lines.length){ log('parsed','a sentence, not an item'); looseNote(text.trim(),typed); quiet(); return; }
 
   /* work out what each piece is before touching the list */
   const plan=[];
@@ -3902,7 +3944,7 @@ function heard(text,typed){
       return;
     }
     if(j.kind==='hold'){ holdSpoken(j.base); return; }
-    if(j.kind==='note'){ saidNote(j.base,'said without \u201cnote\u201d'); return; }
+    if(j.kind==='note'){ looseNote(j.base,typed); return; }
     landed=addSpoken(j.base,fresh,j.sid,explicit);
   });
   if(swapped&&landed) queueReview({t:Date.now(),kind:'swap',id:landed.id,name:landed.name,old:swapped});
